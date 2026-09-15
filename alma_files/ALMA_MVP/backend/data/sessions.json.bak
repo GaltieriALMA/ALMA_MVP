@@ -1,0 +1,62 @@
+{
+  "local_user::local_session": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hola ALMA",
+        "at": "2026-09-15T07:50:47.802518+00:00"
+      },
+      {
+        "role": "assistant",
+        "content": "Estoy funcionando en modo de prueba. Recibí: Hola ALMA",
+        "at": "2026-09-15T07:50:47.803180+00:00"
+      },
+      {
+        "role": "user",
+        "content": "Mi color favorito es azul",
+        "at": "2026-09-15T07:52:12.331102+00:00"
+      },
+      {
+        "role": "assistant",
+        "content": "Perfecto. Voy a tener presente que tu color favorito es azul.",
+        "at": "2026-09-15T07:52:12.331661+00:00"
+      },
+      {
+        "role": "user",
+        "content": "¿Cuál es mi color favorito?",
+        "at": "2026-09-15T07:53:30.869454+00:00"
+      },
+      {
+        "role": "assistant",
+        "content": "Tu color favorito es azul.",
+        "at": "2026-09-15T07:53:30.870557+00:00"
+      },
+      {
+        "role": "user",
+        "content": "¿Cuál es mi color favorito?",
+        "at": "2026-09-15T07:57:53.712958+00:00"
+      },
+      {
+        "role": "assistant",
+        "content": "Tu color favorito es azul.",
+        "at": "2026-09-15T07:57:53.715316+00:00"
+      },
+      {
+        "role": "user",
+        "content": "Hola Alma, ¿quién sos?",
+        "at": "2026-09-15T09:19:12.934191+00:00"
+      },
+      {
+        "role": "assistant",
+        "content": "Estoy funcionando en modo de prueba. Recibí: Hola Alma, ¿quién sos?",
+        "at": "2026-09-15T09:19:12.936013+00:00"
+      },
+      {
+        "role": "user",
+        "content": "",
+        "at": "2026-09-15T09:21:33.290044+00:00"
+      }
+    ],
+    "updated_at": "2026-09-15T09:21:33.290062+00:00"
+  }
+}

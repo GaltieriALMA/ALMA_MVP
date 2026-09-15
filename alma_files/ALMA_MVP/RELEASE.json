@@ -1,0 +1,24 @@
+{
+  "product": "ALMA",
+  "release": "MVP 1",
+  "version": "1.0.0-rc1",
+  "block": 460,
+  "status": "functional_release_candidate",
+  "identity_version": "1.0.0",
+  "capabilities": [
+    "text_conversation",
+    "persistent_memory",
+    "cross_session_context",
+    "user_isolation",
+    "safe_persistence_recovery",
+    "provider_abstraction_and_fallback",
+    "local_http_api",
+    "mobile_api_contract",
+    "android_client_source"
+  ],
+  "external_validations_pending": [
+    "live_openai_call_with_valid_api_key",
+    "android_apk_build_and_device_install",
+    "remote_https_api_deployment"
+  ]
+}

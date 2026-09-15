@@ -1,0 +1,8 @@
+#!/bin/sh
+DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+CLASSPATH="$DIR/gradle/wrapper/gradle-wrapper.jar"
+if [ ! -f "$CLASSPATH" ]; then
+  echo "Missing gradle-wrapper.jar. Generate it with a local Gradle installation: gradle wrapper"
+  exit 1
+fi
+exec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"

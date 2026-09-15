@@ -1,0 +1,24 @@
+backend/providers/mock_provider.py:3:class MockProvider(BaseProvider):
+backend/providers/openai_provider.py:4:class OpenAIProvider(BaseProvider):
+backend/providers/openai_provider.py:12:        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.6")
+backend/providers/openai_provider.py:13:        self.api_key = os.getenv("OPENAI_API_KEY")
+backend/providers/openai_provider.py:16:        return bool(self.api_key and self.api_key.strip())
+backend/providers/openai_provider.py:20:            raise RuntimeError("OPENAI_API_KEY no configurada.")
+backend/providers/openai_provider.py:22:        from openai import OpenAI
+backend/providers/openai_provider.py:24:        client = OpenAI(api_key=self.api_key, timeout=30.0)
+backend/providers/provider_manager.py:1:from .mock_provider import MockProvider
+backend/providers/provider_manager.py:2:from .openai_provider import OpenAIProvider
+backend/providers/provider_manager.py:4:class ProviderManager:
+backend/providers/provider_manager.py:5:    def __init__(self, openai_provider=None, mock_provider=None):
+backend/providers/provider_manager.py:6:        self.openai = openai_provider or OpenAIProvider()
+backend/providers/provider_manager.py:7:        self.mock = mock_provider or MockProvider()
+backend/providers/provider_manager.py:13:        if self.openai.available():
+backend/providers/provider_manager.py:16:                    self.openai.generate(instructions, user_message),
+backend/providers/provider_manager.py:17:                    "openai"
+backend/providers/provider_manager.py:21:                    "provider": "openai",
+backend/providers/provider_manager.py:27:            self.mock.generate(instructions, user_message),
+backend/providers/provider_manager.py:28:            "mock"
+backend/providers/base_provider.py:2:class BaseProvider(ABC):
+backend/app.py:16:        provider=None,
+backend/app.py:23:        self.provider = provider or ProviderManager()
+backend/app.py:35:            provider=self.provider,
