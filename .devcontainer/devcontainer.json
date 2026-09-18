@@ -1,6 +1,9 @@
 {
   "name": "ALMA Codespace",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "forwardPorts": [8000],
-  "postStartCommand": "cd alma_files/ALMA_MVP && nohup python -m uvicorn backend.api:app --host 0.0.0.0 --port 8000 >/tmp/alma_uvicorn.log 2>&1 &"
+  "forwardPorts": [
+    8000
+  ],
+  "postStartCommand": "cd alma_files/ALMA_MVP && nohup python -m uvicorn backend.api:app --host 0.0.0.0 --port 8000 >/tmp/alma_uvicorn.log 2>&1 &",
+  "postCreateCommand": "python -m pip install -r alma_files/ALMA_MVP/requirements.txt"
 }
