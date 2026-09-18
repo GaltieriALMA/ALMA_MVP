@@ -5,5 +5,5 @@ public final class ApiConfig {
 
     // Development default. For a physical phone, replace with the reachable
     // backend HTTPS URL. No AI provider key belongs in this Android project.
-    public static final String BASE_URL = "http://10.0.2.2:8000";
+    public static final String BASE_URL = "https://probable-guide-6v5gx779jw95f59gj-8000.app.github.dev";
 }

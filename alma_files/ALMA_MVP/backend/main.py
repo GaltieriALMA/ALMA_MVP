@@ -1,4 +1,3 @@
-salir
 from backend.app import AlmaApplication
 
 def main():

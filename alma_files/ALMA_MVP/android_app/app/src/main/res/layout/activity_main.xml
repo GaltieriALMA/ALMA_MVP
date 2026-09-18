@@ -19,6 +19,7 @@
         android:textSize="14sp"
         android:layout_marginBottom="16dp" />
 
+    <ImageView android:id="@+id/almaImage" android:layout_width="match_parent" android:layout_height="260dp" android:src="@drawable/alma_full_body" android:scaleType="centerInside" android:contentDescription="ALMA" />
     <ScrollView
         android:id="@+id/chatScroll"
         android:layout_width="match_parent"
