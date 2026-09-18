@@ -1,10 +1,14 @@
 plugins {
     id("com.android.application")
 }
+val almaBaseUrl = System.getenv("CODESPACE_NAME")?.let { "https://$it-8000.app.github.dev" } ?: "http://10.0.2.2:8000"
 
 android {
     namespace = "com.alma.mvp"
     compileSdk = 35
+    buildFeatures {
+        buildConfig = true
+    }
 
     defaultConfig {
         applicationId = "com.alma.mvp"
@@ -12,6 +16,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
     buildTypes {
