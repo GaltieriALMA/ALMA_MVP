@@ -13,6 +13,7 @@ TESTS = [
     ROOT / "tests" / "test_conversation_flow.py",
     ROOT / "tests" / "test_recovery.py",
     ROOT / "tests" / "test_api.py",
+    ROOT / "tests" / "test_api_auth.py",
     ROOT / "tests" / "test_mobile_contract.py",
     ROOT / "tests" / "test_android_client.py",
     ROOT / "tests" / "test_android_build_readiness.py",

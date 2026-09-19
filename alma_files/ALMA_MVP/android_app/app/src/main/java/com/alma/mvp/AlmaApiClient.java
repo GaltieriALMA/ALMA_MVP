@@ -15,6 +15,9 @@ public class AlmaApiClient {
         connection.setReadTimeout(20000);
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        if (!BuildConfig.ALMA_CLIENT_TOKEN.isEmpty()) {
+            connection.setRequestProperty("X-ALMA-API-Key", BuildConfig.ALMA_CLIENT_TOKEN);
+        }
 
         JSONObject payload = new JSONObject();
         payload.put("user_id", userId);

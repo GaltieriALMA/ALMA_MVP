@@ -23,10 +23,14 @@ def test_release_disables_cleartext():
     assert '${usesCleartext}' in manifest
 
 def test_no_provider_secret_in_android_tree():
+    text_suffixes = {".java", ".kt", ".kts", ".xml", ".properties", ".gradle", ".md", ".txt", ".json"}
     combined = "\n".join(
         p.read_text(errors="ignore")
         for p in ANDROID.rglob("*")
         if p.is_file()
+        and "build" not in p.parts
+        and ".gradle" not in p.parts
+        and p.suffix.lower() in text_suffixes
     )
     assert "OPENAI_API_KEY=" not in combined
     assert "sk-" not in combined

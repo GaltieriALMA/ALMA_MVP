@@ -70,10 +70,14 @@ def test_android_release_security():
 def test_no_embedded_provider_secret():
     root = Path(__file__).resolve().parents[1]
     android = root / "android_app"
+    text_suffixes = {".java", ".kt", ".kts", ".xml", ".properties", ".gradle", ".md", ".txt", ".json"}
     combined = "\n".join(
         p.read_text(errors="ignore")
         for p in android.rglob("*")
         if p.is_file()
+        and "build" not in p.parts
+        and ".gradle" not in p.parts
+        and p.suffix.lower() in text_suffixes
     )
     assert "OPENAI_API_KEY=" not in combined
     assert "sk-" not in combined

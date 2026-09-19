@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 from fastapi.testclient import TestClient
@@ -21,12 +22,15 @@ def fresh_app(tmp):
 def test_health_and_mobile_style_chat_roundtrip():
     with tempfile.TemporaryDirectory() as tmp:
         api_module.alma = fresh_app(tmp)
+        os.environ["ALMA_API_KEY"] = "test_alma_key"
         client = TestClient(api_module.app)
         health = client.get('/health')
         assert health.status_code == 200
         assert health.json()['status'] == 'ok'
 
-        first = client.post('/chat', json={
+        first = client.post('/chat',
+            headers={"X-ALMA-API-Key": "test_alma_key"},
+            json={
             'user_id':'mobile_user', 'session_id':'phone_session_1',
             'message':'Mi color favorito es azul.'
         })
@@ -35,7 +39,9 @@ def test_health_and_mobile_style_chat_roundtrip():
 
         # Simula cierre/reinicio del backend manteniendo almacenamiento persistente.
         api_module.alma = fresh_app(tmp)
-        second = client.post('/chat', json={
+        second = client.post('/chat',
+            headers={"X-ALMA-API-Key": "test_alma_key"},
+            json={
             'user_id':'mobile_user', 'session_id':'phone_session_2',
             'message':'¿Cuál es mi color favorito?'
         })
@@ -43,8 +49,11 @@ def test_health_and_mobile_style_chat_roundtrip():
         assert 'azul' in second.json()['text'].lower()
 
 def test_api_rejects_invalid_payload():
+    os.environ["ALMA_API_KEY"] = "test_alma_key"
     client = TestClient(api_module.app)
-    response = client.post('/chat', json={
+    response = client.post('/chat',
+        headers={"X-ALMA-API-Key": "test_alma_key"},
+        json={
         'user_id':'u', 'session_id':'s', 'message':''
     })
     assert response.status_code == 422

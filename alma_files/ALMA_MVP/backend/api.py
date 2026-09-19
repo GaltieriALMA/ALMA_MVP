@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException
+import os
+import secrets
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from backend.app import AlmaApplication
 
@@ -28,8 +30,19 @@ def health():
         "identity_version": alma.identity.identity_version,
     }
 
+def require_api_key(x_alma_api_key: str | None = Header(default=None, alias="X-ALMA-API-Key")):
+    expected = os.getenv("ALMA_API_KEY", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="ALMA_API_KEY no configurada.")
+    if not x_alma_api_key or not secrets.compare_digest(x_alma_api_key, expected):
+        raise HTTPException(status_code=401, detail="No autorizado.")
+
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(
+    request: ChatRequest,
+    x_alma_api_key: str | None = Header(default=None, alias="X-ALMA-API-Key"),
+):
+    require_api_key(x_alma_api_key)
     try:
         result = alma.chat(
             user_id=request.user_id,

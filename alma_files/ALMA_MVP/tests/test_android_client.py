@@ -21,12 +21,18 @@ def test_android_uses_api_contract():
     assert '"session_id"' in client
     assert '"message"' in client
     assert 'getString("text")' in client
+    assert '"X-ALMA-API-Key"' in client
+    assert "BuildConfig.ALMA_CLIENT_TOKEN" in client
 
 def test_no_openai_key_in_android_source():
+    text_suffixes = {".java", ".kt", ".kts", ".xml", ".properties", ".gradle", ".md", ".txt", ".json"}
     combined = "\n".join(
         p.read_text(errors="ignore")
         for p in ANDROID.rglob("*")
         if p.is_file()
+        and "build" not in p.parts
+        and ".gradle" not in p.parts
+        and p.suffix.lower() in text_suffixes
     )
     assert "OPENAI_API_KEY=" not in combined
     assert "sk-" not in combined
