@@ -7,7 +7,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 public class AlmaApiClient {
-    public String chat(String userId, String sessionId, String message) throws Exception {
+    public String chat(String userId, String sessionId, String message, String accessToken) throws Exception {
         URL url = new URL(ApiConfig.BASE_URL + "/chat");
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
@@ -15,9 +15,10 @@ public class AlmaApiClient {
         connection.setReadTimeout(20000);
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-        if (!BuildConfig.ALMA_CLIENT_TOKEN.isEmpty()) {
-            connection.setRequestProperty("X-ALMA-API-Key", BuildConfig.ALMA_CLIENT_TOKEN);
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            throw new IOException("ALMA access token missing");
         }
+        connection.setRequestProperty("X-ALMA-API-Key", accessToken);
 
         JSONObject payload = new JSONObject();
         payload.put("user_id", userId);

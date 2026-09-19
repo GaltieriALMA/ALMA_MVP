@@ -16,6 +16,7 @@ TESTS = [
     ROOT / "tests" / "test_api_auth.py",
     ROOT / "tests" / "test_mobile_contract.py",
     ROOT / "tests" / "test_android_client.py",
+    ROOT / "tests" / "test_android_runtime_auth.py",
     ROOT / "tests" / "test_android_build_readiness.py",
     ROOT / "tests" / "test_mvp_acceptance.py",
     ROOT / "tests" / "test_release_b460.py",

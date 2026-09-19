@@ -10,6 +10,7 @@ def test_android_structure():
         ANDROID / "app/src/main/AndroidManifest.xml",
         ANDROID / "app/src/main/java/com/alma/mvp/MainActivity.java",
         ANDROID / "app/src/main/java/com/alma/mvp/AlmaApiClient.java",
+        ANDROID / "app/src/main/java/com/alma/mvp/SecureTokenStore.java",
         ANDROID / "app/src/main/res/layout/activity_main.xml",
     ]
     assert all(p.exists() for p in required)
@@ -22,7 +23,7 @@ def test_android_uses_api_contract():
     assert '"message"' in client
     assert 'getString("text")' in client
     assert '"X-ALMA-API-Key"' in client
-    assert "BuildConfig.ALMA_CLIENT_TOKEN" in client
+    assert "accessToken" in client
 
 def test_no_openai_key_in_android_source():
     text_suffixes = {".java", ".kt", ".kts", ".xml", ".properties", ".gradle", ".md", ".txt", ".json"}

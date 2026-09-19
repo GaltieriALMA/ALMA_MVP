@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
 }
 val almaBaseUrl = System.getenv("CODESPACE_NAME")?.let { "https://$it-8000.app.github.dev" } ?: "http://10.0.2.2:8000"
-val almaClientToken = System.getenv("ALMA_CLIENT_TOKEN") ?: ""
 
 android {
     namespace = "com.alma.mvp"
@@ -18,7 +17,6 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
-        buildConfigField("String", "ALMA_CLIENT_TOKEN", "\"$almaClientToken\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
     buildTypes {
