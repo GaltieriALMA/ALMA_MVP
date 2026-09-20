@@ -40,7 +40,9 @@ public class MainActivity extends AppCompatActivity {
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(Locale.getDefault());
+                tts.setLanguage(new Locale("es", "AR"));
+                tts.setSpeechRate(0.88f);
+                tts.setPitch(1.00f);
             }
         });
 
