@@ -36,7 +36,19 @@ def require_api_key(x_alma_api_key: str | None = Header(default=None, alias="X-A
         raise HTTPException(status_code=503, detail="ALMA_API_KEY no configurada.")
     if not x_alma_api_key or not secrets.compare_digest(x_alma_api_key, expected):
         raise HTTPException(status_code=401, detail="No autorizado.")
-
+@app.post("/tts")
+def text_to_speech(
+    request: TTSRequest,
+    x_alma_api_key: str | None = Header(default=None, alias="X-ALMA-API-Key"),
+):
+    require_api_key(x_alma_api_key)
+    if not tts.available():
+        raise HTTPException(status_code=503, detail="ElevenLabs no configurado.")
+    try:
+        audio = tts.generate(request.text)
+        return Response(content=audio, media_type="audio/mpeg")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="ALMA no pudo generar la voz.") from exc
 @app.post("/chat", response_model=ChatResponse)
 def chat(
     request: ChatRequest,
