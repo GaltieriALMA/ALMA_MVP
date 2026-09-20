@@ -14,7 +14,7 @@ class ProviderManager:
             try:
                 return (
                     self.openai.generate(instructions, user_message),
-                    "openai"
+                 "openai"
                 )
             except Exception as exc:
                 self.last_error = {
@@ -22,6 +22,7 @@ class ProviderManager:
                     "error_type": type(exc).__name__,
                     "message": str(exc)[:300],
                 }
+                print("OPENAI_ERROR:", self.last_error)
 
         return (
             self.mock.generate(instructions, user_message),
