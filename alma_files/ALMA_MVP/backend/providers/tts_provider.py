@@ -2,7 +2,7 @@ import json
 import os
 from urllib.parse import quote
 from urllib.request import Request, urlopen
-
+from urllib.error import HTTPError
 
 class ElevenLabsTTSProvider:
     def __init__(self):
@@ -39,5 +39,10 @@ class ElevenLabsTTSProvider:
             },
         )
 
-        with urlopen(request, timeout=60) as response:
-            return response.read()
+        try:
+            with urlopen(request, timeout=60) as response:
+                return response.read()
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+            print("ELEVENLABS_HTTP_ERROR:", exc.code, body)
+            raise
