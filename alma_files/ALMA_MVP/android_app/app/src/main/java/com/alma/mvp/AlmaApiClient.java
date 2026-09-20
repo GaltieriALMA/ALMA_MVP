@@ -11,8 +11,8 @@ public class AlmaApiClient {
         URL url = new URL(ApiConfig.BASE_URL + "/chat");
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
-        connection.setConnectTimeout(10000);
-        connection.setReadTimeout(20000);
+        connection.setConnectTimeout(90000);
+        connection.setReadTimeout(120000);
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
         if (accessToken == null || accessToken.trim().isEmpty()) {

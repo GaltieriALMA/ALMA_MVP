@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
                     });
                 } else {
                     runOnUiThread(() ->
-                            append("ALMA: No pude conectarme. Intentá nuevamente.")
+                            append("ALMA ERROR: " + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()))
                     );
                 }
             } finally {
