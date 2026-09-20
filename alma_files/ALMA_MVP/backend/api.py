@@ -3,6 +3,7 @@ import secrets
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from backend.app import AlmaApplication
+print("ENV_CHECK ALMA_API_KEY:", bool(os.getenv("ALMA_API_KEY", "").strip()), "len=", len(os.getenv("ALMA_API_KEY", "").strip()))
 
 app = FastAPI(
     title="ALMA MVP API",
