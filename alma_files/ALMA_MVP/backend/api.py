@@ -3,13 +3,15 @@ import secrets
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from backend.app import AlmaApplication
-
+from fastapi.responses import Response
+from backend.providers.tts_provider import ElevenLabsTTSProvider
 app = FastAPI(
     title="ALMA MVP API",
     version="1.0.0",
 )
 
 alma = AlmaApplication()
+tts = ElevenLabsTTSProvider()
 
 class ChatRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=128)
@@ -21,7 +23,8 @@ class ChatResponse(BaseModel):
     provider: str
     valid: bool
     issues: list[str]
-
+class TTSRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
 @app.get("/health")
 def health():
     return {
