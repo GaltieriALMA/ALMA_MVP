@@ -22,7 +22,6 @@ class ProviderManager:
                     "error_type": type(exc).__name__,
                     "message": str(exc)[:300],
                 }
-                print("OPENAI_ERROR:", self.last_error)
 
         return (
             self.mock.generate(instructions, user_message),
