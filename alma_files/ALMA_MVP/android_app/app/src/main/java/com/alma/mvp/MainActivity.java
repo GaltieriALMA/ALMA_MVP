@@ -1,11 +1,16 @@
 package com.alma.mvp;
 
 import android.os.Bundle;
+import android.content.Intent;
+import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
 import android.text.InputType;
 import android.widget.*;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private final AlmaApiClient api = new AlmaApiClient();
@@ -15,6 +20,9 @@ public class MainActivity extends AppCompatActivity {
     private TextView chatText;
     private EditText messageInput;
     private Button sendButton;
+    private Button voiceButton;
+    private TextToSpeech tts;
+    private static final int VOICE_REQUEST_CODE = 1001;
     private SecureTokenStore tokenStore;
 
     @Override
@@ -27,6 +35,14 @@ public class MainActivity extends AppCompatActivity {
         chatText = findViewById(R.id.chatText);
         messageInput = findViewById(R.id.messageInput);
         sendButton = findViewById(R.id.sendButton);
+        voiceButton = findViewById(R.id.voiceButton);
+        voiceButton.setOnClickListener(v -> startVoiceRecognition());
+
+        tts = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                tts.setLanguage(Locale.getDefault());
+            }
+        });
 
         sendButton.setOnClickListener(v -> {
             if (tokenStore.load() == null) {
@@ -35,6 +51,26 @@ public class MainActivity extends AppCompatActivity {
                 sendMessage();
             }
         });
+    }
+
+    private void startVoiceRecognition() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Hablale a ALMA");
+        startActivityForResult(intent, VOICE_REQUEST_CODE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == VOICE_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (results != null && !results.isEmpty()) {
+                messageInput.setText(results.get(0));
+                sendMessage();
+            }
+        }
     }
 
     private void requestAccessKey() {
@@ -84,7 +120,12 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 String reply = api.chat(userId, sessionId, message, token);
-                runOnUiThread(() -> append("ALMA: " + reply));
+                runOnUiThread(() -> {
+                    append("ALMA: " + reply);
+                    if (tts != null) {
+                        tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "ALMA_REPLY");
+                    }
+                });
             } catch (Exception e) {
                 if (e.getMessage() != null && e.getMessage().contains("401")) {
                     tokenStore.clear();
