@@ -4,6 +4,9 @@ import android.os.Bundle;
 import android.content.Intent;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
+import android.media.MediaPlayer;
+import java.io.File;
+import java.io.FileOutputStream;
 import android.text.InputType;
 import android.widget.*;
 import androidx.appcompat.app.AlertDialog;
@@ -122,11 +125,12 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 String reply = api.chat(userId, sessionId, message, token);
+                byte[] audio = api.tts(reply, token);
                 runOnUiThread(() -> {
                     append("ALMA: " + reply);
-                    if (tts != null) {
-                        tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "ALMA_REPLY");
-                    }
+                    playAudio(audio);
+
+
                 });
             } catch (Exception e) {
                 if (e.getMessage() != null && e.getMessage().contains("401")) {
@@ -145,8 +149,27 @@ public class MainActivity extends AppCompatActivity {
             }
         }).start();
     }
+    private void playAudio(byte[] audio) {
+                try {
+                            File file = File.createTempFile("alma_voice_", ".mp3", getCacheDir());
+                                        try (FileOutputStream out = new FileOutputStream(file)) {
+                                                        out.write(audio);
+                                                                    }
 
-    private void append(String line) {
+                                                                                MediaPlayer player = new MediaPlayer();
+                                                                                            player.setDataSource(file.getAbsolutePath());
+                                                                                                        player.setOnCompletionListener(mp -> {
+                                                                                                                        mp.release();
+                                                                                                                                        file.delete();
+                                                                                                                                                    });
+                                                                                                                                                                player.prepare();
+                                                                                                                                                                            player.start();
+                                                                                                                                                                                    } catch (Exception e) {
+                                                                                                                                                                                                append("ALMA: No pude reproducir la voz.");
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                            }
+    }
+     private void append(String line) {
         chatText.append("\n\n" + line);
     }
 }
