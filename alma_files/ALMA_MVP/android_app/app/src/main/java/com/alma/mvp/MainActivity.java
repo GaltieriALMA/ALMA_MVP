@@ -168,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
                                                                                                                                                                                                 append("ALMA: No pude reproducir la voz.");
                                                                                                                                                                                                         }
                                                                                                                                                                                                             }
-    }
+    
      private void append(String line) {
         chatText.append("\n\n" + line);
     }
