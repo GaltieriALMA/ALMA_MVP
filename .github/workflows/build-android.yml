@@ -1,0 +1,36 @@
+name: Build ALMA Android
+
+on:
+  push:
+    branches:
+      - hardening/chat-auth
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alma_files/ALMA_MVP/android_app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Make Gradle executable
+        run: chmod +x gradlew
+
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALMA_MVP-debug
+          path: alma_files/ALMA_MVP/android_app/app/build/outputs/apk/debug/app-debug.apk
