@@ -163,6 +163,7 @@ public class MainActivity extends AppCompatActivity {
                                                                                                                                         file.delete();
                                                                                                                                                     });
                                                                                                                                                                 player.prepare();
+                    player.setPlaybackParams(player.getPlaybackParams().setSpeed(1.0f).setPitch(1.0f));
                                                                                                                                                                             player.start();
                                                                                                                                                                                     } catch (Exception e) {
                                                                                                                                                                                                 append("ALMA: No pude reproducir la voz.");
