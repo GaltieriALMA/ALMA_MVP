@@ -30,7 +30,7 @@ class ElevenLabsTTSProvider:
     "stability": 0.89,
     "similarity_boost": 0.74,
     "style": 0.0,
-    
+    "use_speaker_boost": True,
     "speed": 0.76
 },
         }).encode("utf-8")
