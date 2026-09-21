@@ -44,7 +44,7 @@ public class AlmaApiClient {
         }
 
         if (status < 200 || status >= 300) {
-            throw new IOException("ALMA API HTTP " + status);
+            throw new IOException("ALMA API HTTP " + status + ": " + body);
         }
 
         return new JSONObject(body.toString()).getString("text");
