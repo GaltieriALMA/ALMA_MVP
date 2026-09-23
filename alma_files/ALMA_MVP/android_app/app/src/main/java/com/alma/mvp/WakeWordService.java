@@ -23,7 +23,7 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-public class WakeWordService extends Service implements RecognitionListener {
+public class WakeWordService extends Service implements RecognitionListener, VoskWakeWord.Listener {
 
     private static final String CHANNEL_ID = "alma_hands_free";
     private static final int NOTIFICATION_ID = 41;
@@ -39,7 +39,7 @@ public class WakeWordService extends Service implements RecognitionListener {
     private Intent recognizerIntent;
     private SecureTokenStore tokenStore;
     private MediaPlayer currentPlayer;
-
+private VoskWakeWord voskWakeWord;
     private boolean listening = false;
     private boolean speaking = false;
     private boolean conversationActive = false;
@@ -51,20 +51,19 @@ public class WakeWordService extends Service implements RecognitionListener {
         super.onCreate();
 
         tokenStore = new SecureTokenStore(this);
-
+voskWakeWord = new VoskWakeWord(this, this);
         createNotificationChannel();
         startForeground(
                 NOTIFICATION_ID,
                 buildNotification("Esperando que digas \"ALMA\"")
         );
 
-        setupRecognizer();
-        handler.postDelayed(this::startListening, 500);
+    voskWakeWord.startWake();    
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        handler.postDelayed(this::startListening, 300);
+     voskWakeWord.startWake();   
         return START_STICKY;
     }
 
@@ -176,13 +175,13 @@ public class WakeWordService extends Service implements RecognitionListener {
     private void resumeConversationListening() {
         lastConversationActivity = System.currentTimeMillis();
         updateNotification("Conversación activa");
-        scheduleListening(300);
+        voskWakeWord.startConversation(CONVERSATION_IDLE_MS);
     }
 
     private void resetToWakeMode() {
         conversationActive = false;
         updateNotification("Esperando que digas \"ALMA\"");
-        scheduleListening(300);
+        voskWakeWord.startWake();
     }
 
     private void handleNoSpeech() {
@@ -477,12 +476,46 @@ public class WakeWordService extends Service implements RecognitionListener {
     @Override
     public void onEvent(int eventType, Bundle params) {
     }
+@Override
+public void onWakeWord() {
+    if (destroyed || speaking) {
+        return;
+    }
+    activateConversation("alma");
+}
 
+@Override
+public void onConversationText(String text) {
+    if (destroyed || speaking) {
+        return;
+    }
+    sendToAlma(text);
+}
+
+@Override
+public void onConversationTimeout() {
+    if (destroyed) {
+        return;
+    }
+    resetToWakeMode();
+}
+
+@Override
+public void onError(Exception error) {
+    if (destroyed) {
+        return;
+    }
+    updateNotification("Error de reconocimiento. Reintentando");
+    resetToWakeMode();
+}
     @Override
     public void onDestroy() {
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
-
+if (voskWakeWord != null) {
+    voskWakeWord.destroy();
+    voskWakeWord = null;
+}
         if (recognizer != null) {
             try {
                 recognizer.cancel();
