@@ -168,7 +168,7 @@ voskWakeWord = new VoskWakeWord(this, this);
         if (!remainder.isEmpty()) {
             sendToAlma(remainder);
         } else {
-            speakAlmaText("Sí, te escucho.", this::resumeConversationListening);
+            resumeConversationListening();
         }
     }
 
