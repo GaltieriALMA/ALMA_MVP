@@ -165,28 +165,31 @@ public final class VoskWakeWord implements RecognitionListener {
         }
     }
 
-    private final Runnable conversationTimeoutRunnable = () -> {
-        if (destroyed || activeMode != Mode.CONVERSATION) {
-            return;
-        }
-
-        long idle =
-                System.currentTimeMillis() - lastVoiceActivity;
-
-        if (idle >= conversationTimeoutMs) {
-            stopListening();
-
-            if (listener != null) {
-                listener.onConversationTimeout();
+        private final Runnable conversationTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (destroyed || activeMode != Mode.CONVERSATION) {
+                return;
             }
 
-            return;
-        }
+            long idle =
+                    System.currentTimeMillis() - lastVoiceActivity;
 
-        handler.postDelayed(
-                conversationTimeoutRunnable,
-                conversationTimeoutMs - idle
-        );
+            if (idle >= conversationTimeoutMs) {
+                stopListening();
+
+                if (listener != null) {
+                    listener.onConversationTimeout();
+                }
+
+                return;
+            }
+
+            handler.postDelayed(
+                    this,
+                    conversationTimeoutMs - idle
+            );
+        }
     };
 
     private String textFromJson(String hypothesis, String key) {
