@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -87,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            setupHandsFreeRecognition();
+            startHandsFreeService();
         } else {
             requestPermissions(
                     new String[]{Manifest.permission.RECORD_AUDIO},
@@ -96,7 +97,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void setupHandsFreeRecognition() {
+ private void startHandsFreeService() {
+    Intent serviceIntent = new Intent(this, WakeWordService.class);
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(serviceIntent);
+    } else {
+        startService(serviceIntent);
+    }
+ 
+ }   private void setupHandsFreeRecognition() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             append("ALMA: El reconocimiento de voz no está disponible.");
             return;
@@ -328,7 +338,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                setupHandsFreeRecognition();
+                startHandsFreeService();
             } else {
                 append("ALMA: Necesito permiso de micrófono para el modo manos libres.");
             }
