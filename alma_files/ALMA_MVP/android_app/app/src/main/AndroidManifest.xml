@@ -9,7 +9,11 @@
         android:label="ALMA"
         android:theme="@style/Theme.ALMA"
         android:usesCleartextTraffic="${usesCleartext}">
-        <activity
+               <service
+            android:name=".WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone"
+            android:stopWithTask="false" /> <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
