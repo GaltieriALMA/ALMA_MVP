@@ -27,7 +27,7 @@ public class WakeWordService extends Service implements RecognitionListener {
 
     private static final String CHANNEL_ID = "alma_hands_free";
     private static final int NOTIFICATION_ID = 41;
-    private static final long CONVERSATION_IDLE_MS = 20000L;
+    private static final long CONVERSATION_IDLE_MS = 5000L;
     private static final Pattern WAKE_WORD = Pattern.compile("\\balma\\b");
 
     private final Handler handler = new Handler(Looper.getMainLooper());
