@@ -25,7 +25,13 @@ jobs:
 
       - name: Make Gradle executable
         run: chmod +x gradlew
-
+      - name: Download Vosk Spanish model
+        run: |
+          mkdir -p app/src/main/assets
+          curl -L -o /tmp/vosk-model.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+          unzip -q /tmp/vosk-model.zip -d /tmp/vosk-model
+          mv /tmp/vosk-model/vosk-model-small-es-0.42 app/src/main/assets/model-es
+          printf 'alma-vosk-es-0.42\n' > app/src/main/assets/model-es/uuid
       - name: Build APK
         run: ./gradlew assembleDebug
 
