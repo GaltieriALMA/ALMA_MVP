@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 
 public class WakeWordService extends Service implements RecognitionListener, VoskWakeWord.Listener {
 
-    private static final String CHANNEL_ID = "alma_hands_free";
+    private static final String CHANNEL_ID = "alma_hands_free_silent_v2";
     private static final int NOTIFICATION_ID = 41;
     private static final long CONVERSATION_IDLE_MS = 5000L;
     private static final Pattern WAKE_WORD = Pattern.compile("\\balma\\b");
@@ -360,7 +360,8 @@ voskWakeWord = new VoskWakeWord(this, this);
         channel.setDescription(
                 "ALMA escucha la palabra de activación mientras el modo manos libres está activo."
         );
-
+channel.setSound(null, null);
+channel.enableVibration(false);
         manager.createNotificationChannel(channel);
     }
 
