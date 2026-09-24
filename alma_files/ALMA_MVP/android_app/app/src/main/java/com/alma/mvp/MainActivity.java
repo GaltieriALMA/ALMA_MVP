@@ -87,15 +87,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            startHandsFreeService();
-        } else {
-            requestPermissions(
-                    new String[]{Manifest.permission.RECORD_AUDIO},
-                    AUDIO_PERMISSION_REQUEST_CODE
-            );
-        }
-    }
+    }   
 
  private void startHandsFreeService() {
     Intent serviceIntent = new Intent(this, WakeWordService.class);
