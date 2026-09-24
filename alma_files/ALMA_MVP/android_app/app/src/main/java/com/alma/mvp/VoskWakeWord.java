@@ -1,20 +1,23 @@
 package com.alma.mvp;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 
 import org.json.JSONObject;
 import org.vosk.Model;
 import org.vosk.Recognizer;
-import org.vosk.android.RecognitionListener;
-import org.vosk.android.SpeechService;
 import org.vosk.android.StorageService;
 
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-public final class VoskWakeWord implements RecognitionListener {
+public final class VoskWakeWord {
 
     public interface Listener {
         void onWakeWord();
@@ -40,16 +43,18 @@ public final class VoskWakeWord implements RecognitionListener {
 
     private Model model;
     private Recognizer recognizer;
-    private SpeechService speechService;
+    private AudioRecord audioRecord;
+    private Thread audioThread;
 
     private Mode desiredMode = Mode.NONE;
-    private Mode activeMode = Mode.NONE;
+    private volatile Mode activeMode = Mode.NONE;
 
     private boolean loadingModel = false;
     private boolean destroyed = false;
+    private volatile boolean stopRequested = false;
 
     private long conversationTimeoutMs = 5000L;
-    private long lastVoiceActivity = 0L;
+    private volatile long lastVoiceActivity = 0L;
 
     public VoskWakeWord(Context context, Listener listener) {
         this.context = context.getApplicationContext();
@@ -58,7 +63,6 @@ public final class VoskWakeWord implements RecognitionListener {
 
     public void startWake() {
         if (destroyed) return;
-
         desiredMode = Mode.WAKE;
         stopEngine();
         ensureModel();
@@ -66,11 +70,9 @@ public final class VoskWakeWord implements RecognitionListener {
 
     public void startConversation(long timeoutMs) {
         if (destroyed) return;
-
         desiredMode = Mode.CONVERSATION;
         conversationTimeoutMs = timeoutMs;
         lastVoiceActivity = System.currentTimeMillis();
-
         stopEngine();
         ensureModel();
     }
@@ -86,9 +88,7 @@ public final class VoskWakeWord implements RecognitionListener {
             startDesiredMode();
             return;
         }
-
         if (loadingModel) return;
-
         loadingModel = true;
 
         StorageService.unpack(
@@ -97,21 +97,15 @@ public final class VoskWakeWord implements RecognitionListener {
                 "model",
                 loadedModel -> {
                     loadingModel = false;
-
                     if (destroyed) {
-                        try {
-                            loadedModel.close();
-                        } catch (Exception ignored) {
-                        }
+                        try { loadedModel.close(); } catch (Exception ignored) {}
                         return;
                     }
-
                     model = loadedModel;
                     startDesiredMode();
                 },
                 exception -> {
                     loadingModel = false;
-
                     if (!destroyed && listener != null) {
                         listener.onError(exception);
                     }
@@ -119,10 +113,9 @@ public final class VoskWakeWord implements RecognitionListener {
         );
     }
 
+    @SuppressLint("MissingPermission")
     private void startDesiredMode() {
-        if (destroyed || model == null || desiredMode == Mode.NONE) {
-            return;
-        }
+        if (destroyed || model == null || desiredMode == Mode.NONE) return;
 
         try {
             if (desiredMode == Mode.WAKE) {
@@ -132,20 +125,50 @@ public final class VoskWakeWord implements RecognitionListener {
                         "[\"alma\", \"[unk]\"]"
                 );
             } else {
-                recognizer = new Recognizer(
-                        model,
-                        SAMPLE_RATE
+                recognizer = new Recognizer(model, SAMPLE_RATE);
+            }
+
+            int minBufferBytes = AudioRecord.getMinBufferSize(
+                    (int) SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+            );
+
+            if (minBufferBytes <= 0) {
+                throw new IllegalStateException(
+                        "No se pudo calcular el buffer del micrófono"
+                );
+            }
+
+            int bufferBytes = Math.max(minBufferBytes, 6400);
+
+            audioRecord = new AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    (int) SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    bufferBytes
+            );
+
+            if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                throw new IllegalStateException(
+                        "No se pudo inicializar el micrófono"
                 );
             }
 
             activeMode = desiredMode;
+            stopRequested = false;
+            audioRecord.startRecording();
 
-            speechService = new SpeechService(
-                    recognizer,
-                    SAMPLE_RATE
-            );
+            if (audioRecord.getRecordingState()
+                    != AudioRecord.RECORDSTATE_RECORDING) {
+                throw new IllegalStateException(
+                        "No se pudo iniciar la grabación"
+                );
+            }
 
-            speechService.startListening(this);
+            audioThread = new Thread(this::runAudioLoop, "ALMA-Vosk-Mic");
+            audioThread.start();
 
             if (activeMode == Mode.CONVERSATION) {
                 lastVoiceActivity = System.currentTimeMillis();
@@ -158,37 +181,71 @@ public final class VoskWakeWord implements RecognitionListener {
 
         } catch (Exception e) {
             stopEngine();
-
             if (!destroyed && listener != null) {
                 listener.onError(e);
             }
         }
     }
 
-        private final Runnable conversationTimeoutRunnable = new Runnable() {
+    private void runAudioLoop() {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
+        short[] buffer = new short[1600];
+
+        try {
+            while (!stopRequested) {
+                AudioRecord recorder = audioRecord;
+                Recognizer currentRecognizer = recognizer;
+
+                if (recorder == null || currentRecognizer == null) return;
+
+                int read = recorder.read(buffer, 0, buffer.length);
+
+                if (stopRequested) return;
+
+                if (read < 0) {
+                    throw new IllegalStateException(
+                            "Error leyendo el micrófono: " + read
+                    );
+                }
+
+                if (read == 0) continue;
+
+                if (currentRecognizer.acceptWaveForm(buffer, read)) {
+                    String hypothesis = currentRecognizer.getResult();
+                    handler.post(() -> handleResult(hypothesis));
+                } else {
+                    String hypothesis = currentRecognizer.getPartialResult();
+                    handler.post(() -> handlePartialResult(hypothesis));
+                }
+            }
+        } catch (Exception e) {
+            if (!stopRequested && !destroyed) {
+                handler.post(() -> {
+                    stopEngine();
+                    if (!destroyed && listener != null) {
+                        listener.onError(e);
+                    }
+                });
+            }
+        }
+    }
+
+    private final Runnable conversationTimeoutRunnable = new Runnable() {
         @Override
         public void run() {
-            if (destroyed || activeMode != Mode.CONVERSATION) {
-                return;
-            }
+            if (destroyed || activeMode != Mode.CONVERSATION) return;
 
-            long idle =
-                    System.currentTimeMillis() - lastVoiceActivity;
+            long idle = System.currentTimeMillis() - lastVoiceActivity;
 
             if (idle >= conversationTimeoutMs) {
                 stopListening();
-
                 if (listener != null) {
                     listener.onConversationTimeout();
                 }
-
                 return;
             }
 
-            handler.postDelayed(
-                    this,
-                    conversationTimeoutMs - idle
-            );
+            handler.postDelayed(this, conversationTimeoutMs - idle);
         }
     };
 
@@ -203,9 +260,7 @@ public final class VoskWakeWord implements RecognitionListener {
     }
 
     private boolean containsWakeWord(String text) {
-        if (text == null || text.isEmpty()) {
-            return false;
-        }
+        if (text == null || text.isEmpty()) return false;
 
         return WAKE_WORD.matcher(
                 text.toLowerCase(Locale.ROOT)
@@ -214,140 +269,92 @@ public final class VoskWakeWord implements RecognitionListener {
 
     private void wakeDetected() {
         stopListening();
-
-        if (listener != null) {
-            listener.onWakeWord();
-        }
+        if (listener != null) listener.onWakeWord();
     }
 
     private void conversationDetected(String text) {
-        if (text == null || text.trim().isEmpty()) {
-            return;
-        }
+        if (text == null || text.trim().isEmpty()) return;
 
         stopListening();
-
         if (listener != null) {
             listener.onConversationText(text.trim());
         }
     }
 
-    @Override
-    public void onPartialResult(String hypothesis) {
-        String text =
-                textFromJson(hypothesis, "partial");
+    private void handlePartialResult(String hypothesis) {
+        if (destroyed || activeMode == Mode.NONE) return;
+
+        String text = textFromJson(hypothesis, "partial");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) {
-                wakeDetected();
-            }
+            if (containsWakeWord(text)) wakeDetected();
             return;
         }
 
-        if (activeMode == Mode.CONVERSATION
-                && !text.isEmpty()) {
-            lastVoiceActivity =
-                    System.currentTimeMillis();
+        if (activeMode == Mode.CONVERSATION && !text.isEmpty()) {
+            lastVoiceActivity = System.currentTimeMillis();
         }
     }
 
-    @Override
-    public void onResult(String hypothesis) {
-        String text =
-                textFromJson(hypothesis, "text");
+    private void handleResult(String hypothesis) {
+        if (destroyed || activeMode == Mode.NONE) return;
+
+        String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) {
-                wakeDetected();
-            }
+            if (containsWakeWord(text)) wakeDetected();
             return;
         }
 
         if (activeMode == Mode.CONVERSATION) {
             conversationDetected(text);
-        }
-    }
-
-    @Override
-    public void onFinalResult(String hypothesis) {
-        String text =
-                textFromJson(hypothesis, "text");
-
-        if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) {
-                wakeDetected();
-            }
-            return;
-        }
-
-        if (activeMode == Mode.CONVERSATION) {
-            conversationDetected(text);
-        }
-    }
-
-    @Override
-    public void onError(Exception exception) {
-        stopEngine();
-
-        if (!destroyed && listener != null) {
-            listener.onError(exception);
-        }
-    }
-
-    @Override
-    public void onTimeout() {
-        if (activeMode == Mode.CONVERSATION) {
-            stopListening();
-
-            if (listener != null) {
-                listener.onConversationTimeout();
-            }
         }
     }
 
     private void stopEngine() {
         handler.removeCallbacks(conversationTimeoutRunnable);
 
-        if (speechService != null) {
-            try {
-                speechService.cancel();
-            } catch (Exception ignored) {
-            }
+        stopRequested = true;
+        activeMode = Mode.NONE;
 
-            try {
-                speechService.shutdown();
-            } catch (Exception ignored) {
-            }
+        AudioRecord recorder = audioRecord;
+        audioRecord = null;
 
-            speechService = null;
+        if (recorder != null) {
+            try { recorder.stop(); } catch (Exception ignored) {}
+        }
+
+        Thread thread = audioThread;
+        audioThread = null;
+
+        if (thread != null && thread != Thread.currentThread()) {
+            try {
+                thread.interrupt();
+                thread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        if (recorder != null) {
+            try { recorder.release(); } catch (Exception ignored) {}
         }
 
         if (recognizer != null) {
-            try {
-                recognizer.close();
-            } catch (Exception ignored) {
-            }
-
+            try { recognizer.close(); } catch (Exception ignored) {}
             recognizer = null;
         }
-
-        activeMode = Mode.NONE;
     }
 
     public void destroy() {
         destroyed = true;
         desiredMode = Mode.NONE;
-
         handler.removeCallbacksAndMessages(null);
         stopEngine();
 
         if (model != null) {
-            try {
-                model.close();
-            } catch (Exception ignored) {
-            }
-
+            try { model.close(); } catch (Exception ignored) {}
             model = null;
         }
     }
-    }
+}
