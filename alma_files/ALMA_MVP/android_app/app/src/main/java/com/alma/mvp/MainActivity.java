@@ -86,7 +86,14 @@ public class MainActivity extends AppCompatActivity {
                 sendMessage();
             }
         });
-
+if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+    startHandsFreeService();
+} else {
+    requestPermissions(
+            new String[]{Manifest.permission.RECORD_AUDIO},
+            AUDIO_PERMISSION_REQUEST_CODE
+    );
+}
     }   
 
  private void startHandsFreeService() {
