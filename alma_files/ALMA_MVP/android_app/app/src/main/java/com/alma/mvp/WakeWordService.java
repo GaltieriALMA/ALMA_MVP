@@ -58,7 +58,7 @@ voskWakeWord = new VoskWakeWord(this, this);
                 buildNotification("Esperando que digas \"ALMA\"")
         );
 
-    voskWakeWord.startWake();    
+      
     }
 
     @Override
