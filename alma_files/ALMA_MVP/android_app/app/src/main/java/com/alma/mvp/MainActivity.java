@@ -86,17 +86,16 @@ public class MainActivity extends AppCompatActivity {
                 sendMessage();
             }
         });
-if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-    startHandsFreeService();
-} else {
-    requestPermissions(
-            new String[]{Manifest.permission.RECORD_AUDIO},
-            AUDIO_PERMISSION_REQUEST_CODE
-    );
-}
-    }   
+    }
+ @Override
+protected void onResume() {
+    super.onResume();
 
- private void startHandsFreeService() {
+    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+        startHandsFreeService();
+    }
+}
+    private void startHandsFreeService() {
     Intent serviceIntent = new Intent(this, WakeWordService.class);
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
