@@ -506,8 +506,12 @@ public void onError(Exception error) {
     if (destroyed) {
         return;
     }
-    updateNotification("Error de reconocimiento. Reintentando");
-    resetToWakeMode();
+
+    updateNotification("Reconocimiento detenido por error");
+
+    if (voskWakeWord != null) {
+        voskWakeWord.stopListening();
+    }
 }
     @Override
     public void onDestroy() {
