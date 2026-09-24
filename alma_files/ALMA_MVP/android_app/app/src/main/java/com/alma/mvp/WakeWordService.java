@@ -63,7 +63,7 @@ voskWakeWord = new VoskWakeWord(this, this);
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-     voskWakeWord.startWake();   
+       
         return START_STICKY;
     }
 
