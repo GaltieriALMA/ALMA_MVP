@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.vosk.Model;
 import org.vosk.Recognizer;
@@ -124,6 +125,7 @@ public final class VoskWakeWord {
                         SAMPLE_RATE,
                         "[\"alma\", \"[unk]\"]"
                 );
+                recognizer.setWords(true);
             } else {
                 recognizer = new Recognizer(model, SAMPLE_RATE);
             }
@@ -267,6 +269,29 @@ public final class VoskWakeWord {
         ).find();
     }
 
+    private boolean containsConfidentWakeWord(String hypothesis) {
+        try {
+            JSONObject obj = new JSONObject(hypothesis);
+            JSONArray result = obj.optJSONArray("result");
+
+            if (result == null) return false;
+
+            for (int i = 0; i < result.length(); i++) {
+                JSONObject word = result.optJSONObject(i);
+
+                if (word == null) continue;
+
+                if ("alma".equalsIgnoreCase(word.optString("word", ""))
+                        && word.optDouble("conf", 0.0) >= 0.85) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        return false;
+    }
+
     private void wakeDetected() {
         stopListening();
         if (listener != null) listener.onWakeWord();
@@ -301,7 +326,7 @@ public final class VoskWakeWord {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) wakeDetected();
+            if (containsConfidentWakeWord(hypothesis)) wakeDetected();
             return;
         }
 
