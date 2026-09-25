@@ -312,7 +312,8 @@ public final class VoskWakeWord {
         String text = textFromJson(hypothesis, "partial");
 
         if (activeMode == Mode.WAKE) {
-            return;
+    if (containsWakeWord(text)) wakeDetected();
+    return;
         }
 
         if (activeMode == Mode.CONVERSATION && !text.isEmpty()) {
