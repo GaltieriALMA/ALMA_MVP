@@ -145,7 +145,7 @@ public final class VoskWakeWord {
             int bufferBytes = Math.max(minBufferBytes, 6400);
 
             audioRecord = new AudioRecord(
-                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    MediaRecorder.AudioSource.MIC,
                     (int) SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
