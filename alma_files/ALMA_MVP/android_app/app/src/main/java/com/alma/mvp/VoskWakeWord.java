@@ -9,7 +9,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.vosk.Model;
 import org.vosk.Recognizer;
@@ -21,7 +20,7 @@ import java.util.regex.Pattern;
 public final class VoskWakeWord {
 
     public interface Listener {
-        void onWakeWord();
+        void onWakeWord(String recognizedText);
         void onConversationText(String text);
         void onConversationTimeout();
         void onError(Exception error);
@@ -54,7 +53,7 @@ public final class VoskWakeWord {
     private boolean destroyed = false;
     private volatile boolean stopRequested = false;
 
-    private long conversationTimeoutMs = 5000L;
+    private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
 
     public VoskWakeWord(Context context, Listener listener) {
@@ -89,6 +88,7 @@ public final class VoskWakeWord {
             startDesiredMode();
             return;
         }
+
         if (loadingModel) return;
         loadingModel = true;
 
@@ -98,15 +98,21 @@ public final class VoskWakeWord {
                 "model",
                 loadedModel -> {
                     loadingModel = false;
+
                     if (destroyed) {
-                        try { loadedModel.close(); } catch (Exception ignored) {}
+                        try {
+                            loadedModel.close();
+                        } catch (Exception ignored) {
+                        }
                         return;
                     }
+
                     model = loadedModel;
                     startDesiredMode();
                 },
                 exception -> {
                     loadingModel = false;
+
                     if (!destroyed && listener != null) {
                         listener.onError(exception);
                     }
@@ -119,16 +125,9 @@ public final class VoskWakeWord {
         if (destroyed || model == null || desiredMode == Mode.NONE) return;
 
         try {
-            if (desiredMode == Mode.WAKE) {
-                recognizer = new Recognizer(
-                        model,
-                        SAMPLE_RATE,
-                        "[\"alma\", \"hola alma\", \"[unk]\"]"
-                );
-                recognizer.setWords(true);
-            } else {
-                recognizer = new Recognizer(model, SAMPLE_RATE);
-            }
+            recognizer = new Recognizer(model, SAMPLE_RATE);
+            recognizer.setWords(true);
+            recognizer.setEndpointerMode(Recognizer.EndpointerMode.SHORT);
 
             int minBufferBytes = AudioRecord.getMinBufferSize(
                     (int) SAMPLE_RATE,
@@ -169,7 +168,10 @@ public final class VoskWakeWord {
                 );
             }
 
-            audioThread = new Thread(this::runAudioLoop, "ALMA-Vosk-Mic");
+            audioThread = new Thread(
+                    this::runAudioLoop,
+                    "ALMA-Vosk-Mic"
+            );
             audioThread.start();
 
             if (activeMode == Mode.CONVERSATION) {
@@ -183,6 +185,7 @@ public final class VoskWakeWord {
 
         } catch (Exception e) {
             stopEngine();
+
             if (!destroyed && listener != null) {
                 listener.onError(e);
             }
@@ -198,7 +201,9 @@ public final class VoskWakeWord {
                 AudioRecord recorder = audioRecord;
                 Recognizer currentRecognizer = recognizer;
 
-                if (recorder == null || currentRecognizer == null) return;
+                if (recorder == null || currentRecognizer == null) {
+                    return;
+                }
 
                 int read = recorder.read(buffer, 0, buffer.length);
 
@@ -224,6 +229,7 @@ public final class VoskWakeWord {
             if (!stopRequested && !destroyed) {
                 handler.post(() -> {
                     stopEngine();
+
                     if (!destroyed && listener != null) {
                         listener.onError(e);
                     }
@@ -237,17 +243,22 @@ public final class VoskWakeWord {
         public void run() {
             if (destroyed || activeMode != Mode.CONVERSATION) return;
 
-            long idle = System.currentTimeMillis() - lastVoiceActivity;
+            long idle =
+                    System.currentTimeMillis() - lastVoiceActivity;
 
             if (idle >= conversationTimeoutMs) {
                 stopListening();
+
                 if (listener != null) {
                     listener.onConversationTimeout();
                 }
                 return;
             }
 
-            handler.postDelayed(this, conversationTimeoutMs - idle);
+            handler.postDelayed(
+                    this,
+                    conversationTimeoutMs - idle
+            );
         }
     };
 
@@ -269,38 +280,20 @@ public final class VoskWakeWord {
         ).find();
     }
 
-    private boolean containsConfidentWakeWord(String hypothesis) {
-        try {
-            JSONObject obj = new JSONObject(hypothesis);
-            JSONArray result = obj.optJSONArray("result");
-
-            if (result == null) return false;
-
-            for (int i = 0; i < result.length(); i++) {
-                JSONObject word = result.optJSONObject(i);
-
-                if (word == null) continue;
-
-                if ("alma".equalsIgnoreCase(word.optString("word", ""))
-                        && word.optDouble("conf", 0.0) >= 0.85) {
-                    return true;
-                }
-            }
-        } catch (Exception ignored) {
-        }
-
-        return false;
-    }
-
-    private void wakeDetected() {
+    private void wakeDetected(String recognizedText) {
         stopListening();
-        if (listener != null) listener.onWakeWord();
+
+        if (listener != null) {
+            listener.onWakeWord(recognizedText);
+        }
     }
 
     private void conversationDetected(String text) {
         if (text == null || text.trim().isEmpty()) return;
 
+        lastVoiceActivity = System.currentTimeMillis();
         stopListening();
+
         if (listener != null) {
             listener.onConversationText(text.trim());
         }
@@ -309,16 +302,14 @@ public final class VoskWakeWord {
     private void handlePartialResult(String hypothesis) {
         if (destroyed || activeMode == Mode.NONE) return;
 
-        String text = textFromJson(hypothesis, "partial");
-
+        // Los resultados parciales NO activan ALMA.
+        // Esto evita falsos despertares por TV, videos y conversaciones.
         if (activeMode == Mode.WAKE) {
-    if (containsWakeWord(text)) wakeDetected();
-    return;
+            return;
         }
 
-        if (activeMode == Mode.CONVERSATION && !text.isEmpty()) {
-            lastVoiceActivity = System.currentTimeMillis();
-        }
+        // En conversación tampoco renovamos el tiempo con parciales.
+        // Solo una frase final válida mantiene abierta la conversación.
     }
 
     private void handleResult(String hypothesis) {
@@ -327,7 +318,9 @@ public final class VoskWakeWord {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) wakeDetected();
+            if (containsWakeWord(text)) {
+                wakeDetected(text);
+            }
             return;
         }
 
@@ -346,7 +339,10 @@ public final class VoskWakeWord {
         audioRecord = null;
 
         if (recorder != null) {
-            try { recorder.stop(); } catch (Exception ignored) {}
+            try {
+                recorder.stop();
+            } catch (Exception ignored) {
+            }
         }
 
         Thread thread = audioThread;
@@ -362,11 +358,17 @@ public final class VoskWakeWord {
         }
 
         if (recorder != null) {
-            try { recorder.release(); } catch (Exception ignored) {}
+            try {
+                recorder.release();
+            } catch (Exception ignored) {
+            }
         }
 
         if (recognizer != null) {
-            try { recognizer.close(); } catch (Exception ignored) {}
+            try {
+                recognizer.close();
+            } catch (Exception ignored) {
+            }
             recognizer = null;
         }
     }
@@ -378,7 +380,10 @@ public final class VoskWakeWord {
         stopEngine();
 
         if (model != null) {
-            try { model.close(); } catch (Exception ignored) {}
+            try {
+                model.close();
+            } catch (Exception ignored) {
+            }
             model = null;
         }
     }
