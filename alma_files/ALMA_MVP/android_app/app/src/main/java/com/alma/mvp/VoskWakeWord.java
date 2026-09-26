@@ -123,7 +123,7 @@ public final class VoskWakeWord {
                 recognizer = new Recognizer(
                         model,
                         SAMPLE_RATE,
-                        "[\"alma\", \"[unk]\"]"
+                        "[\"alma\", \"hola alma\", \"[unk]\"]"
                 );
                 recognizer.setWords(true);
             } else {
@@ -312,7 +312,7 @@ public final class VoskWakeWord {
         String text = textFromJson(hypothesis, "partial");
 
         if (activeMode == Mode.WAKE) {
-    if (!text.isEmpty()) wakeDetected();
+    if (containsWakeWord(text)) wakeDetected();
     return;
         }
 
