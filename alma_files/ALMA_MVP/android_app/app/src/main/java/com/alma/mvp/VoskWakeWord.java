@@ -128,6 +128,7 @@ public final class VoskWakeWord {
             recognizer = new Recognizer(model, SAMPLE_RATE);
             recognizer.setWords(true);
             recognizer.setEndpointerMode(Recognizer.EndpointerMode.SHORT);
+            recognizer.setEndpointerDelays(3.0f, 0.35f, 10.0f);
 
             int minBufferBytes = AudioRecord.getMinBufferSize(
                     (int) SAMPLE_RATE,
