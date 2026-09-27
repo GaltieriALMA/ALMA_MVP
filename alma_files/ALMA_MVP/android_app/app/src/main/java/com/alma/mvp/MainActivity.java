@@ -13,6 +13,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.text.InputType;
+import android.util.Base64;
 import android.widget.*;
 
 import androidx.appcompat.app.AlertDialog;
@@ -20,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
@@ -345,7 +347,7 @@ protected void onResume() {
                         android.graphics.Bitmap photo =
                                         (android.graphics.Bitmap) extras.get("data");
 
-                                                append("ALMA: Foto recibida.");
+                                                ByteArrayOutputStream out = new ByteArrayOutputStream(); photo.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out); messageInput.setText("__IMAGE__:" + Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP)); sendMessage();
                                                     }
                                                     }
     }
@@ -425,13 +427,13 @@ protected void onResume() {
             }
         }
 
-        append("Vos: " + message);
+        append(message.startsWith("__IMAGE__:") ? "Vos: [Foto]" : "Vos: " + message);
         messageInput.setText("");
         sendButton.setEnabled(false);
 
         new Thread(() -> {
             try {
-                String reply = api.chat(userId, sessionId, message, token);
+                String reply = message.startsWith("__IMAGE__:") ? api.chatWithImage(userId, sessionId, "Mirá esta imagen y contame qué ves", message.substring(10), "image/jpeg", token) : api.chat(userId, sessionId, message, token);
                 byte[] audio = api.tts(reply, token);
 
                 runOnUiThread(() -> {
