@@ -33,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText messageInput;
     private Button sendButton;
     private Button voiceButton;
+    private Button cameraButton;
     private TextToSpeech tts;
     private SecureTokenStore tokenStore;
 
@@ -68,9 +69,9 @@ public class MainActivity extends AppCompatActivity {
         messageInput = findViewById(R.id.messageInput);
         sendButton = findViewById(R.id.sendButton);
         voiceButton = findViewById(R.id.voiceButton);
-
+cameraButton = findViewById(R.id.cameraButton);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
-
+cameraButton.setOnClickListener(v -> openCamera());
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 tts.setLanguage(new Locale("es", "AR"));
