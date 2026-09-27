@@ -87,7 +87,21 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
- @Override
+ private void openCamera() {
+    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+        requestPermissions(new String[]{Manifest.permission.CAMERA}, 2002);
+        return;
+    }
+
+    Intent cameraIntent = new Intent("android.media.action.IMAGE_CAPTURE");
+
+    if (cameraIntent.resolveActivity(getPackageManager()) != null) {
+        startActivity(cameraIntent);
+    } else {
+        append("ALMA: No encontré una aplicación de cámara disponible.");
+    }
+ }
+    @Override
 protected void onResume() {
     super.onResume();
 
