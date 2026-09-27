@@ -349,7 +349,7 @@ protected void onResume() {
                                                     }
                                                     }
     }
-    }
+    
 
     @Override
     public void onRequestPermissionsResult(
