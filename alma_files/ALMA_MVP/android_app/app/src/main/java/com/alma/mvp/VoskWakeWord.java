@@ -55,7 +55,19 @@ public final class VoskWakeWord {
 
     private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
+private static final long PARTIAL_WAKE_DEBOUNCE_MS = 800L;
+private volatile String pendingWakePartial = "";
 
+private final Runnable partialWakeRunnable = () -> {
+    if (destroyed || activeMode != Mode.WAKE) return;
+
+    String text = pendingWakePartial;
+    pendingWakePartial = "";
+
+    if (containsWakeWord(text)) {
+        wakeDetected(text);
+    }
+};
     public VoskWakeWord(Context context, Listener listener) {
         this.context = context.getApplicationContext();
         this.listener = listener;
@@ -301,16 +313,26 @@ public final class VoskWakeWord {
     }
 
     private void handlePartialResult(String hypothesis) {
-        if (destroyed || activeMode == Mode.NONE) return;
+    if (destroyed || activeMode == Mode.NONE) return;
 
-        // Los resultados parciales NO activan ALMA.
-        // Esto evita falsos despertares por TV, videos y conversaciones.
-        if (activeMode == Mode.WAKE) {
+    if (activeMode == Mode.WAKE) {
+        String text = textFromJson(hypothesis, "partial");
+
+        if (!containsWakeWord(text)) {
             return;
         }
 
-        // En conversación tampoco renovamos el tiempo con parciales.
-        // Solo una frase final válida mantiene abierta la conversación.
+        pendingWakePartial = text;
+        handler.removeCallbacks(partialWakeRunnable);
+        handler.postDelayed(
+                partialWakeRunnable,
+                PARTIAL_WAKE_DEBOUNCE_MS
+        );
+        return;
+    }
+
+    // En conversación no renovamos el tiempo con parciales.
+    // Solo una frase final válida mantiene abierta la conversación.
     }
 
     private void handleResult(String hypothesis) {
@@ -320,6 +342,8 @@ public final class VoskWakeWord {
 
         if (activeMode == Mode.WAKE) {
             if (containsWakeWord(text)) {
+              handler.removeCallbacks(partialWakeRunnable);
+pendingWakePartial = "";  
                 wakeDetected(text);
             }
             return;
@@ -332,7 +356,8 @@ public final class VoskWakeWord {
 
     private void stopEngine() {
         handler.removeCallbacks(conversationTimeoutRunnable);
-
+handler.removeCallbacks(partialWakeRunnable);
+pendingWakePartial = "";
         stopRequested = true;
         activeMode = Mode.NONE;
 
