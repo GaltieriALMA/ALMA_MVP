@@ -97,7 +97,7 @@ cameraButton.setOnClickListener(v -> openCamera());
     Intent cameraIntent = new Intent("android.media.action.IMAGE_CAPTURE");
 
     if (cameraIntent.resolveActivity(getPackageManager()) != null) {
-        startActivity(cameraIntent);
+        startActivityForResult(cameraIntent, 3001);
     } else {
         append("ALMA: No encontré una aplicación de cámara disponible.");
     }
@@ -338,6 +338,17 @@ protected void onResume() {
 
             startWakeWordListening();
         }
+    if (requestCode == 3001 && resultCode == RESULT_OK && data != null) {
+            Bundle extras = data.getExtras();
+
+                if (extras != null && extras.get("data") != null) {
+                        android.graphics.Bitmap photo =
+                                        (android.graphics.Bitmap) extras.get("data");
+
+                                                append("ALMA: Foto recibida.");
+                                                    }
+                                                    }
+    }
     }
 
     @Override
