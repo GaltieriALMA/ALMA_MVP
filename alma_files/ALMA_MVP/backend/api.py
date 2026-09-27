@@ -17,7 +17,8 @@ class ChatRequest(BaseModel):
     user_id: str = Field(min_length=1, max_length=128)
     session_id: str = Field(min_length=1, max_length=128)
     message: str = Field(min_length=1, max_length=12000)
-
+    image_base64: str | None = None
+        mime_type: str = "image/jpeg"
 class ChatResponse(BaseModel):
     text: str
     provider: str
@@ -59,6 +60,23 @@ def chat(
 ):
     require_api_key(x_alma_api_key)
     try:
+         if request.image_base64:
+                        from openai import OpenAI
+                                    client = OpenAI(api_key=alma.provider.openai.api_key, timeout=60.0)
+                                                context = alma.context_builder.build(
+                                                                request.user_id,
+                                                                                request.message,
+                                                                                                alma.sessions.recent(request.user_id, request.session_id),
+                                                                                                            )
+                                                                                                                        response = client.responses.create(
+                                                                                                                                        model=alma.provider.openai.model,
+                                                                                                                                                        instructions=context,
+                                                                                                                                                                        input=[{"role": "user", "content": [
+                                                                                                                                                                                            {"type": "input_text", "text": request.message},
+                                                                                                                                                                                                                {"type": "input_image", "image_url": f"data:{request.mime_type};base64,{request.image_base64}"},
+                                                                                                                                                                                                                                ]}],
+                                                                                                                                                                                                                                            )
+                                                                                                                                                                                                                                                        return ChatResponse(text=response.output_text.strip(), provider="openai", valid=True, issues=[])       
         result = alma.chat(
             user_id=request.user_id,
             session_id=request.session_id,
