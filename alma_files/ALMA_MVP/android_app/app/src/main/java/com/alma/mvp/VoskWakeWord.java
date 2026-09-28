@@ -23,6 +23,7 @@ public final class VoskWakeWord {
     public interface Listener {
         void onWakeWord(String recognizedText);
         void onConversationAudio(byte[] pcm16, String localText);
+        void onInterrupt(String recognizedText);
         void onConversationTimeout();
         void onError(Exception error);
     }
@@ -30,12 +31,16 @@ public final class VoskWakeWord {
     private enum Mode {
         NONE,
         WAKE,
-        CONVERSATION
+        CONVERSATION,
+        INTERRUPT
     }
 
     private static final float SAMPLE_RATE = 16000.0f;
     private static final Pattern WAKE_WORD =
             Pattern.compile("\\balma\\b");
+
+    private static final Pattern INTERRUPT_WORD =
+            Pattern.compile("\\b(alma|para|pará|espera|esperá)\\b");
 
     private final Context context;
     private final Listener listener;
@@ -95,6 +100,13 @@ private final Runnable partialWakeRunnable = () -> {
         ensureModel();
     }
 
+    public void startInterrupt() {
+        if (destroyed) return;
+        desiredMode = Mode.INTERRUPT;
+        stopEngine();
+        ensureModel();
+    }
+
     public void stopListening() {
         desiredMode = Mode.NONE;
         handler.removeCallbacks(conversationTimeoutRunnable);
@@ -143,9 +155,21 @@ private final Runnable partialWakeRunnable = () -> {
         if (destroyed || model == null || desiredMode == Mode.NONE) return;
 
         try {
-            recognizer = desiredMode == Mode.WAKE
-                    ? new Recognizer(model, SAMPLE_RATE, "[\"alma\", \"[unk]\"]")
-                    : new Recognizer(model, SAMPLE_RATE);
+            if (desiredMode == Mode.WAKE) {
+                recognizer = new Recognizer(
+                        model,
+                        SAMPLE_RATE,
+                        "[\"alma\", \"[unk]\"]"
+                );
+            } else if (desiredMode == Mode.INTERRUPT) {
+                recognizer = new Recognizer(
+                        model,
+                        SAMPLE_RATE,
+                        "[\"alma\", \"para\", \"espera\", \"[unk]\"]"
+                );
+            } else {
+                recognizer = new Recognizer(model, SAMPLE_RATE);
+            }
             recognizer.setWords(true);
             recognizer.setEndpointerMode(Recognizer.EndpointerMode.SHORT);
             recognizer.setEndpointerDelays(3.0f, 0.35f, 10.0f);
@@ -327,6 +351,22 @@ private final Runnable partialWakeRunnable = () -> {
         ).find();
     }
 
+    private boolean containsInterruptWord(String text) {
+        if (text == null || text.isEmpty()) return false;
+
+        return INTERRUPT_WORD.matcher(
+                text.toLowerCase(Locale.ROOT)
+        ).find();
+    }
+
+    private void interruptDetected(String recognizedText) {
+        stopListening();
+
+        if (listener != null) {
+            listener.onInterrupt(recognizedText);
+        }
+    }
+
     private void wakeDetected(String recognizedText) {
         stopListening();
 
@@ -396,6 +436,12 @@ pendingWakePartial = "";
 
         if (activeMode == Mode.CONVERSATION) {
             conversationDetected(text);
+            return;
+        }
+
+        if (activeMode == Mode.INTERRUPT
+                && containsInterruptWord(text)) {
+            interruptDetected(text);
         }
     }
 

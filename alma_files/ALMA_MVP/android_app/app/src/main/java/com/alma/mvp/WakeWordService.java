@@ -41,6 +41,7 @@ public class WakeWordService extends Service
 
     private SecureTokenStore tokenStore;
     private MediaPlayer currentPlayer;
+    private File currentAudioFile;
     private VoskWakeWord voskWakeWord;
 
     private boolean speaking = false;
@@ -374,6 +375,7 @@ public class WakeWordService extends Service
                     ".mp3",
                     getCacheDir()
             );
+            currentAudioFile = file;
 
             try (FileOutputStream out =
                          new FileOutputStream(file)) {
@@ -399,6 +401,7 @@ public class WakeWordService extends Service
                 }
 
                 currentPlayer = null;
+                currentAudioFile = null;
                 file.delete();
                 speaking = false;
 
@@ -430,6 +433,17 @@ public class WakeWordService extends Service
             currentPlayer.start();
 
             updateNotification("ALMA está hablando");
+
+            MediaPlayer interruptPlayer = currentPlayer;
+
+            handler.postDelayed(() -> {
+                if (!destroyed
+                        && speaking
+                        && currentPlayer == interruptPlayer
+                        && voskWakeWord != null) {
+                    voskWakeWord.startInterrupt();
+                }
+            }, 600L);
 
         } catch (Exception e) {
             speaking = false;
@@ -510,6 +524,48 @@ public class WakeWordService extends Service
     }
 
     @Override
+    public void onInterrupt(String recognizedText) {
+        if (destroyed || !speaking) return;
+
+        MediaPlayer player = currentPlayer;
+        currentPlayer = null;
+
+        if (player != null) {
+            try {
+                player.setOnCompletionListener(null);
+                player.setOnErrorListener(null);
+                player.stop();
+            } catch (Exception ignored) {
+            }
+
+            try {
+                player.release();
+            } catch (Exception ignored) {
+            }
+        }
+
+        File file = currentAudioFile;
+        currentAudioFile = null;
+
+        if (file != null) {
+            try {
+                file.delete();
+            } catch (Exception ignored) {
+            }
+        }
+
+        speaking = false;
+        conversationActive = true;
+        updateNotification("Te escucho");
+
+        if (voskWakeWord != null) {
+            voskWakeWord.startConversation(
+                    CONVERSATION_IDLE_MS
+            );
+        }
+    }
+
+    @Override
     public void onConversationAudio(byte[] pcm16, String localText) {
         if (destroyed || speaking) return;
 
@@ -583,6 +639,11 @@ public class WakeWordService extends Service
     @Override
     public void onError(Exception error) {
         if (destroyed) return;
+
+        if (speaking) {
+            updateNotification("ALMA está hablando");
+            return;
+        }
 
         updateNotification(
                 "Reiniciando reconocimiento"
