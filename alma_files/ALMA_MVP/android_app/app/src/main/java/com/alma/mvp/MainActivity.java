@@ -366,6 +366,7 @@ protected void onResume() {
     }
     
 
+    }
     @Override
     public void onRequestPermissionsResult(
             int requestCode,
