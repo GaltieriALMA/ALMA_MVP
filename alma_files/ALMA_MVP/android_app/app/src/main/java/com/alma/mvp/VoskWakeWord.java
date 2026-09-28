@@ -231,7 +231,7 @@ private final Runnable partialWakeRunnable = () -> {
                 if (read == 0) continue;
 
                 for (int i = 0; i < read; i++) {
-                    int amplified = buffer[i] * 20;
+                    int amplified = buffer[i] * 30;
                     if (amplified > Short.MAX_VALUE) amplified = Short.MAX_VALUE;
                     if (amplified < Short.MIN_VALUE) amplified = Short.MIN_VALUE;
                     buffer[i] = (short) amplified;

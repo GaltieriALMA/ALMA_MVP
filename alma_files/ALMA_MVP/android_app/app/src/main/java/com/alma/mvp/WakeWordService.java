@@ -223,7 +223,7 @@ public class WakeWordService extends Service
                     try {
                         Intent intent = new Intent(
                                 Intent.ACTION_VIEW,
-                                android.net.Uri.parse("vnd.youtube:" + videoId)
+                                android.net.Uri.parse("https://www.youtube.com/watch?v=" + videoId)
                         );
                         intent.setPackage("com.google.android.youtube");
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
