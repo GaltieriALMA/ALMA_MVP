@@ -157,7 +157,7 @@ private final Runnable partialWakeRunnable = () -> {
             int bufferBytes = Math.max(minBufferBytes, 6400);
 
             audioRecord = new AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
                     (int) SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,

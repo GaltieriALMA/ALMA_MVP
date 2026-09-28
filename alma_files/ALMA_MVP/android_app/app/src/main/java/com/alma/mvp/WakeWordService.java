@@ -175,25 +175,51 @@ public class WakeWordService extends Service
 
     private boolean handleVideoCommand(String message) {
         String normalized = normalize(message);
-        String[] prefixes = {"busca un video de ", "busca video de ", "buscar un video de ", "buscar video de ", "buscame un video de ", "buscame video de ", "busca en youtube ", "buscame en youtube ", "mostrame un video de ", "mostra un video de ", "pone un video de ", "poneme un video de ", "reproduci un video de ", "reproducir un video de "};
-        for (String prefix : prefixes) {
-            if (normalized.startsWith(prefix)) {
-                String query = normalized.substring(prefix.length()).trim();
-                if (query.isEmpty()) return false;
-                try {
-                    Intent videoIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=" + android.net.Uri.encode(query)));
-                    videoIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(videoIntent);
-                    updateNotification("Buscando video: " + query);
-                    resetToWakeMode();
-                } catch (Exception e) {
-                    updateNotification("No pude abrir YouTube");
-                    resetToWakeMode();
-                }
-                return true;
-            }
+
+        boolean wantsVideo =
+                normalized.contains("video")
+                || normalized.contains("youtube");
+
+        boolean wantsSearch =
+                normalized.contains("busca")
+                || normalized.contains("buscame")
+                || normalized.contains("mostra")
+                || normalized.contains("mostrame")
+                || normalized.contains("pone")
+                || normalized.contains("poneme")
+                || normalized.contains("reproduci");
+
+        if (!wantsVideo || !wantsSearch) {
+            return false;
         }
-        return false;
+
+        String query = normalized
+                .replaceFirst(".*?video\\s+(de|del)?\\s*", "")
+                .replaceFirst(".*?youtube\\s*", "")
+                .trim();
+
+        if (query.isEmpty()) {
+            return false;
+        }
+
+        try {
+            Intent videoIntent = new Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                            "https://www.youtube.com/results?search_query="
+                                    + android.net.Uri.encode(query)
+                    )
+            );
+            videoIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(videoIntent);
+            updateNotification("Buscando video: " + query);
+            resetToWakeMode();
+        } catch (Exception e) {
+            updateNotification("No pude abrir YouTube");
+            resetToWakeMode();
+        }
+
+        return true;
     }
 
     private void sendToAlma(String message) {
