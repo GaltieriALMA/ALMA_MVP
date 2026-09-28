@@ -58,7 +58,10 @@ public final class VoskWakeWord {
     private volatile long lastVoiceActivity = 0L;
     private ByteArrayOutputStream conversationAudio;
     private int conversationPeak = 0;
-private static final long PARTIAL_WAKE_DEBOUNCE_MS = 0L;
+    private double conversationEnergy = 0.0;
+    private long conversationSamples = 0L;
+    private static final double MIN_CONVERSATION_RMS = 650.0;
+private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
 private volatile String pendingWakePartial = "";
 
 private final Runnable partialWakeRunnable = () -> {
@@ -181,6 +184,8 @@ private final Runnable partialWakeRunnable = () -> {
             if (activeMode == Mode.CONVERSATION) {
                 conversationAudio = new ByteArrayOutputStream();
                 conversationPeak = 0;
+                conversationEnergy = 0.0;
+                conversationSamples = 0L;
             } else {
                 conversationAudio = null;
                 conversationPeak = 0;
@@ -254,6 +259,8 @@ private final Runnable partialWakeRunnable = () -> {
 
                         conversationAudio.write(sample & 0xff);
                         conversationAudio.write((sample >> 8) & 0xff);
+                        conversationEnergy += (double) sample * (double) sample;
+                        conversationSamples++;
                     }
                 }
 
@@ -334,12 +341,23 @@ private final Runnable partialWakeRunnable = () -> {
                 ? new byte[0]
                 : conversationAudio.toByteArray();
 
-        if (localText.isEmpty() && conversationPeak < 500) {
+        double rms = conversationSamples > 0
+                ? Math.sqrt(conversationEnergy / conversationSamples)
+                : 0.0;
+
+        if ((localText.isEmpty() && conversationPeak < 500)
+                || rms < MIN_CONVERSATION_RMS) {
+            conversationAudio = new ByteArrayOutputStream();
+            conversationPeak = 0;
+            conversationEnergy = 0.0;
+            conversationSamples = 0L;
             return;
         }
 
         conversationAudio = null;
         conversationPeak = 0;
+        conversationEnergy = 0.0;
+        conversationSamples = 0L;
         lastVoiceActivity = System.currentTimeMillis();
         stopListening();
 
@@ -352,18 +370,9 @@ private final Runnable partialWakeRunnable = () -> {
     if (destroyed || activeMode == Mode.NONE) return;
 
     if (activeMode == Mode.WAKE) {
-        String text = textFromJson(hypothesis, "partial");
-
-        if (!containsWakeWord(text)) {
-            return;
-        }
-
-        pendingWakePartial = text;
-        handler.removeCallbacks(partialWakeRunnable);
-        handler.postDelayed(
-                partialWakeRunnable,
-                PARTIAL_WAKE_DEBOUNCE_MS
-        );
+        // No activamos ALMA con resultados parciales.
+        // Esperamos la confirmación final para evitar falsos disparos
+        // producidos por música, TV o voces lejanas.
         return;
     }
 
