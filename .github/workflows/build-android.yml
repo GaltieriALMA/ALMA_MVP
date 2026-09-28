@@ -23,6 +23,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Keep stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: alma-debug-keystore-v1
+
       - name: Make Gradle executable
         run: chmod +x gradlew
       - name: Download Vosk Spanish model
@@ -32,12 +38,7 @@ jobs:
           unzip -q /tmp/vosk-model.zip -d /tmp/vosk-model
           mv /tmp/vosk-model/vosk-model-small-es-0.42 app/src/main/assets/model-es
           printf 'alma-vosk-es-0.42\n' > app/src/main/assets/model-es/uuid
-      - name: Restore signing keystore
-        run: echo "${{ secrets.ALMA_KEYSTORE_B64 }}" | base64 -d > app/alma-debug.keystore
-
       - name: Build APK
-        env:
-          ALMA_KEYSTORE_PASSWORD: ${{ secrets.ALMA_KEYSTORE_PASSWORD }}
         run: ./gradlew assembleDebug
 
       - name: Upload APK
