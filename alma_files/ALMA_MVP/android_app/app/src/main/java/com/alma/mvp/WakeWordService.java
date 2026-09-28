@@ -175,6 +175,7 @@ public class WakeWordService extends Service
         voskWakeWord.startWake();
     }
 
+
     private boolean handleVideoCommand(String message) {
         String normalized = normalize(message);
 
@@ -182,64 +183,73 @@ public class WakeWordService extends Service
                 normalized.contains("video")
                 || normalized.contains("youtube");
 
-        boolean wantsSearch =
-                normalized.contains("busca")
-                || normalized.contains("buscame")
-                || normalized.contains("mostra")
-                || normalized.contains("mostrame")
-                || normalized.contains("pone")
-                || normalized.contains("poneme")
-                || normalized.contains("reproduci");
-
         if (!wantsVideo) {
             return false;
         }
 
         String query = normalized
-                .replaceFirst(".*?video\\s+(de|del)?\\s*", "")
-                .replaceFirst(".*?youtube\\s*", "")
+                .replaceFirst("^(busca|buscame|mostra|mostrame|pone|poneme|reproduci|reproduce)\s+", "")
+                .replaceFirst("^un\s+", "")
+                .replaceFirst("^video\s+(de|del)?\s*", "")
+                .replaceAll("\b(en\s+)?youtube\b", "")
+                .replaceAll("\s+", " ")
                 .trim();
 
         if (query.isEmpty()) {
             return false;
         }
 
-        try {
-            Intent playIntent = new Intent(
-                    MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH
-            );
-            playIntent.setPackage("com.google.android.youtube");
-            playIntent.putExtra(
-                    android.app.SearchManager.QUERY,
-                    query
-            );
-            playIntent.putExtra(
-                    MediaStore.EXTRA_MEDIA_FOCUS,
-                    "vnd.android.cursor.item/*"
-            );
-            playIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(playIntent);
+        speaking = true;
+        updateNotification("Buscando en YouTube: " + query);
 
-            updateNotification("Reproduciendo: " + query);
-            resetToWakeMode();
+        new Thread(() -> {
+            String token = tokenStore.load();
 
-        } catch (Exception e) {
-            try {
-                Intent fallback = new Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                                "https://www.youtube.com/results?search_query="
-                                        + android.net.Uri.encode(query)
-                        )
-                );
-                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(fallback);
-            } catch (Exception ignored) {
-                updateNotification("No pude abrir YouTube");
+            if (token == null || token.trim().isEmpty()) {
+                handler.post(() -> {
+                    speaking = false;
+                    updateNotification("Abrí ALMA para configurar la clave");
+                    resetToWakeMode();
+                });
+                return;
             }
 
-            resetToWakeMode();
-        }
+            try {
+                org.json.JSONObject result = api.searchYouTube(query, token);
+                String videoId = result.getString("video_id");
+                String title = result.optString("title", query);
+
+                handler.post(() -> {
+                    try {
+                        Intent intent = new Intent(
+                                Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://www.youtube.com/watch?v=" + videoId)
+                        );
+                        intent.setPackage("com.google.android.youtube");
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Intent fallback = new Intent(
+                                Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://www.youtube.com/watch?v=" + videoId)
+                        );
+                        fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(fallback);
+                    }
+
+                    speaking = false;
+                    updateNotification("Reproduciendo: " + title);
+                    resetToWakeMode();
+                });
+
+            } catch (Exception e) {
+                handler.post(() -> {
+                    speaking = false;
+                    updateNotification("No pude buscar el video");
+                    resetToWakeMode();
+                });
+            }
+        }, "ALMA-YouTube").start();
 
         return true;
     }

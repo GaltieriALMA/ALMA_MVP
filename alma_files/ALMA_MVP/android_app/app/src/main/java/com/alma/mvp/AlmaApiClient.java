@@ -73,6 +73,40 @@ public class AlmaApiClient {
         return new JSONObject(body.toString()).getString("text");
     }
 
+    public JSONObject searchYouTube(String query, String accessToken) throws Exception {
+        URL url = new URL(ApiConfig.BASE_URL + "/youtube/search?q=" + java.net.URLEncoder.encode(query, "UTF-8"));
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(30000);
+
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            throw new IOException("ALMA access token missing");
+        }
+
+        connection.setRequestProperty("X-ALMA-API-Key", accessToken);
+
+        int status = connection.getResponseCode();
+        InputStream stream = status >= 200 && status < 300
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+
+        StringBuilder body = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) body.append(line);
+        } finally {
+            connection.disconnect();
+        }
+
+        if (status < 200 || status >= 300) {
+            throw new IOException("ALMA YouTube HTTP " + status + ": " + body);
+        }
+
+        return new JSONObject(body.toString());
+    }
+
         public byte[] tts(String text, String accessToken) throws Exception {
                     URL url = new URL(ApiConfig.BASE_URL + "/tts");
                             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
