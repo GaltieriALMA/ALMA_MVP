@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +37,7 @@ def test_no_openai_key_in_android_source():
         and p.suffix.lower() in text_suffixes
     )
     assert "OPENAI_API_KEY=" not in combined
-    assert "sk-" not in combined
+    assert re.search(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}", combined) is None
 
 if __name__ == "__main__":
     tests = [

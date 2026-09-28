@@ -510,15 +510,67 @@ public class WakeWordService extends Service
     }
 
     @Override
-    public void onConversationText(String text) {
+    public void onConversationAudio(byte[] pcm16, String localText) {
         if (destroyed || speaking) return;
 
-        if (isEndPhrase(text)) {
-            resetToWakeMode();
-            return;
-        }
+        speaking = true;
+        updateNotification("Entendiendo tu voz");
 
-        sendToAlma(text);
+        new Thread(() -> {
+            String token = tokenStore.load();
+
+            if (token == null || token.trim().isEmpty()) {
+                handler.post(() -> {
+                    speaking = false;
+                    resetToWakeMode();
+                });
+                return;
+            }
+
+            try {
+                String transcript = api.transcribe(pcm16, token);
+
+                handler.post(() -> {
+                    speaking = false;
+
+                    String text = transcript == null
+                            ? ""
+                            : transcript.trim();
+
+                    if (text.isEmpty()) {
+                        resumeConversationListening();
+                        return;
+                    }
+
+                    if (isEndPhrase(text)) {
+                        resetToWakeMode();
+                        return;
+                    }
+
+                    sendToAlma(text);
+                });
+
+            } catch (Exception e) {
+                handler.post(() -> {
+                    speaking = false;
+
+                    String fallback = localText == null
+                            ? ""
+                            : localText.trim();
+
+                    if (!fallback.isEmpty()) {
+                        if (isEndPhrase(fallback)) {
+                            resetToWakeMode();
+                        } else {
+                            sendToAlma(fallback);
+                        }
+                    } else {
+                        updateNotification("Seguimos escuchando");
+                        resumeConversationListening();
+                    }
+                });
+            }
+        }, "ALMA-Transcribe").start();
     }
 
     @Override

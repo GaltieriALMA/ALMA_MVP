@@ -14,6 +14,7 @@ import org.vosk.Model;
 import org.vosk.Recognizer;
 import org.vosk.android.StorageService;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -21,7 +22,7 @@ public final class VoskWakeWord {
 
     public interface Listener {
         void onWakeWord(String recognizedText);
-        void onConversationText(String text);
+        void onConversationAudio(byte[] pcm16, String localText);
         void onConversationTimeout();
         void onError(Exception error);
     }
@@ -55,6 +56,8 @@ public final class VoskWakeWord {
 
     private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
+    private ByteArrayOutputStream conversationAudio;
+    private int conversationPeak = 0;
 private static final long PARTIAL_WAKE_DEBOUNCE_MS = 0L;
 private volatile String pendingWakePartial = "";
 
@@ -137,7 +140,9 @@ private final Runnable partialWakeRunnable = () -> {
         if (destroyed || model == null || desiredMode == Mode.NONE) return;
 
         try {
-            recognizer = new Recognizer(model, SAMPLE_RATE);
+            recognizer = desiredMode == Mode.WAKE
+                    ? new Recognizer(model, SAMPLE_RATE, "[\"alma\", \"[unk]\"]")
+                    : new Recognizer(model, SAMPLE_RATE);
             recognizer.setWords(true);
             recognizer.setEndpointerMode(Recognizer.EndpointerMode.SHORT);
             recognizer.setEndpointerDelays(3.0f, 0.35f, 10.0f);
@@ -172,6 +177,15 @@ private final Runnable partialWakeRunnable = () -> {
 
             activeMode = desiredMode;
             stopRequested = false;
+
+            if (activeMode == Mode.CONVERSATION) {
+                conversationAudio = new ByteArrayOutputStream();
+                conversationPeak = 0;
+            } else {
+                conversationAudio = null;
+                conversationPeak = 0;
+            }
+
             audioRecord.startRecording();
 
             if (audioRecord.getRecordingState()
@@ -230,11 +244,17 @@ private final Runnable partialWakeRunnable = () -> {
 
                 if (read == 0) continue;
 
-                for (int i = 0; i < read; i++) {
-                    int amplified = buffer[i] * 30;
-                    if (amplified > Short.MAX_VALUE) amplified = Short.MAX_VALUE;
-                    if (amplified < Short.MIN_VALUE) amplified = Short.MIN_VALUE;
-                    buffer[i] = (short) amplified;
+                if (activeMode == Mode.CONVERSATION && conversationAudio != null) {
+                    for (int i = 0; i < read; i++) {
+                        short sample = buffer[i];
+                        int absolute = Math.abs((int) sample);
+                        if (absolute > conversationPeak) {
+                            conversationPeak = absolute;
+                        }
+
+                        conversationAudio.write(sample & 0xff);
+                        conversationAudio.write((sample >> 8) & 0xff);
+                    }
                 }
 
                 if (currentRecognizer.acceptWaveForm(buffer, read)) {
@@ -309,13 +329,22 @@ private final Runnable partialWakeRunnable = () -> {
     }
 
     private void conversationDetected(String text) {
-        if (text == null || text.trim().isEmpty()) return;
+        String localText = text == null ? "" : text.trim();
+        byte[] audio = conversationAudio == null
+                ? new byte[0]
+                : conversationAudio.toByteArray();
 
+        if (localText.isEmpty() && conversationPeak < 500) {
+            return;
+        }
+
+        conversationAudio = null;
+        conversationPeak = 0;
         lastVoiceActivity = System.currentTimeMillis();
         stopListening();
 
         if (listener != null) {
-            listener.onConversationText(text.trim());
+            listener.onConversationAudio(audio, localText);
         }
     }
 

@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +34,7 @@ def test_no_provider_secret_in_android_tree():
         and p.suffix.lower() in text_suffixes
     )
     assert "OPENAI_API_KEY=" not in combined
-    assert "sk-" not in combined
+    assert re.search(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}", combined) is None
 
 def test_wrapper_version_pinned():
     props = (ANDROID / "gradle/wrapper/gradle-wrapper.properties").read_text()

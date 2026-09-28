@@ -73,6 +73,69 @@ public class AlmaApiClient {
         return new JSONObject(body.toString()).getString("text");
     }
 
+    public String transcribe(byte[] pcm16, String accessToken) throws Exception {
+        if (pcm16 == null || pcm16.length == 0) {
+            throw new IOException("Audio vacío");
+        }
+
+        if (accessToken == null || accessToken.trim().isEmpty()) {
+            throw new IOException("ALMA access token missing");
+        }
+
+        URL url = new URL(ApiConfig.BASE_URL + "/transcribe");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(60000);
+        connection.setDoOutput(true);
+        connection.setRequestProperty(
+                "Content-Type",
+                "application/json; charset=UTF-8"
+        );
+        connection.setRequestProperty(
+                "X-ALMA-API-Key",
+                accessToken
+        );
+
+        JSONObject payload = new JSONObject();
+        payload.put(
+                "audio_base64",
+                java.util.Base64.getEncoder().encodeToString(pcm16)
+        );
+        payload.put("sample_rate", 16000);
+
+        try (OutputStream out = connection.getOutputStream()) {
+            out.write(
+                    payload.toString().getBytes(StandardCharsets.UTF_8)
+            );
+        }
+
+        int status = connection.getResponseCode();
+        InputStream stream = status >= 200 && status < 300
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+
+        StringBuilder body = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                body.append(line);
+            }
+        } finally {
+            connection.disconnect();
+        }
+
+        if (status < 200 || status >= 300) {
+            throw new IOException(
+                    "ALMA Transcribe HTTP " + status + ": " + body
+            );
+        }
+
+        return new JSONObject(body.toString()).getString("text");
+    }
+
     public JSONObject searchYouTube(String query, String accessToken) throws Exception {
         URL url = new URL(ApiConfig.BASE_URL + "/youtube/search?q=" + java.net.URLEncoder.encode(query, "UTF-8"));
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
