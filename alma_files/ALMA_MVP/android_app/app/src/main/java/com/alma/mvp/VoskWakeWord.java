@@ -55,7 +55,7 @@ public final class VoskWakeWord {
 
     private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
-private static final long PARTIAL_WAKE_DEBOUNCE_MS = 250L;
+private static final long PARTIAL_WAKE_DEBOUNCE_MS = 80L;
 private volatile String pendingWakePartial = "";
 
 private final Runnable partialWakeRunnable = () -> {
@@ -231,7 +231,7 @@ private final Runnable partialWakeRunnable = () -> {
                 if (read == 0) continue;
 
                 for (int i = 0; i < read; i++) {
-                    int amplified = buffer[i] * 5;
+                    int amplified = buffer[i] * 10;
                     if (amplified > Short.MAX_VALUE) amplified = Short.MAX_VALUE;
                     if (amplified < Short.MIN_VALUE) amplified = Short.MIN_VALUE;
                     buffer[i] = (short) amplified;
