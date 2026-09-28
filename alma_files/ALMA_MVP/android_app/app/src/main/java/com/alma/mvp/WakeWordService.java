@@ -173,9 +173,36 @@ public class WakeWordService extends Service
         voskWakeWord.startWake();
     }
 
+    private boolean handleVideoCommand(String message) {
+        String normalized = normalize(message);
+        String[] prefixes = {"busca un video de ", "busca video de ", "mostrame un video de ", "mostra un video de "};
+        for (String prefix : prefixes) {
+            if (normalized.startsWith(prefix)) {
+                String query = normalized.substring(prefix.length()).trim();
+                if (query.isEmpty()) return false;
+                try {
+                    Intent videoIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=" + android.net.Uri.encode(query)));
+                    videoIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(videoIntent);
+                    updateNotification("Buscando video: " + query);
+                    resetToWakeMode();
+                } catch (Exception e) {
+                    updateNotification("No pude abrir YouTube");
+                    resetToWakeMode();
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
+            return;
+        }
+
+        if (handleVideoCommand(message)) {
             return;
         }
 
