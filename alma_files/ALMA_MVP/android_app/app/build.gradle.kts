@@ -19,8 +19,17 @@ android {
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
+    signingConfigs {
+        create("alma") {
+            storeFile = file("alma-debug.keystore")
+            storePassword = System.getenv("ALMA_KEYSTORE_PASSWORD") ?: "android"
+            keyAlias = "alma"
+            keyPassword = System.getenv("ALMA_KEYSTORE_PASSWORD") ?: "android"
+        }
+    }
     buildTypes {
         getByName("debug") {
+            signingConfig = signingConfigs.getByName("alma")
             manifestPlaceholders["usesCleartext"] = "true"
         }
         getByName("release") {
