@@ -1,5 +1,8 @@
 import os
 import secrets
+import json
+from urllib.parse import urlencode
+from urllib.request import urlopen
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 from backend.app import AlmaApplication
@@ -78,3 +81,52 @@ def chat(
             status_code=500,
             detail="ALMA no pudo procesar el mensaje."
         ) from exc
+
+@app.get("/youtube/search")
+def youtube_search(
+    q: str,
+    x_alma_api_key: str | None = Header(default=None, alias="X-ALMA-API-Key"),
+):
+    require_api_key(x_alma_api_key)
+
+    query = (q or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Falta la búsqueda.")
+
+    youtube_key = os.getenv("YOUTUBE_API_KEY", "").strip()
+    if not youtube_key:
+        raise HTTPException(status_code=503, detail="YouTube API no configurada.")
+
+    params = urlencode({
+        "part": "snippet",
+        "type": "video",
+        "maxResults": 1,
+        "q": query,
+        "key": youtube_key,
+    })
+
+    try:
+        with urlopen(
+            "https://www.googleapis.com/youtube/v3/search?" + params,
+            timeout=15,
+        ) as response:
+            data = json.load(response)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="ALMA no pudo buscar el video en YouTube.",
+        ) from exc
+
+    items = data.get("items") or []
+    if not items:
+        raise HTTPException(status_code=404, detail="No encontré ese video.")
+
+    item = items[0]
+    video_id = ((item.get("id") or {}).get("videoId") or "").strip()
+    if not video_id:
+        raise HTTPException(status_code=404, detail="No encontré un video válido.")
+
+    return {
+        "video_id": video_id,
+        "title": ((item.get("snippet") or {}).get("title") or query).strip(),
+    }
