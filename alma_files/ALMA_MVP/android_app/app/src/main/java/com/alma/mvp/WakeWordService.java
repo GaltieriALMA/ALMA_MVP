@@ -188,11 +188,11 @@ public class WakeWordService extends Service
         }
 
         String query = normalized
-                .replaceFirst("^(busca|buscame|mostra|mostrame|pone|poneme|reproduci|reproduce)\s+", "")
-                .replaceFirst("^un\s+", "")
-                .replaceFirst("^video\s+(de|del)?\s*", "")
-                .replaceAll("\b(en\s+)?youtube\b", "")
-                .replaceAll("\s+", " ")
+                .replaceFirst("^(busca|buscame|mostra|mostrame|pone|poneme|reproduci|reproduce)\\s+", "")
+                .replaceFirst("^un\\s+", "")
+                .replaceFirst("^video\\s+(de|del)?\\s*", "")
+                .replaceAll("\\b(en\\s+)?youtube\\b", "")
+                .replaceAll("\\s+", " ")
                 .trim();
 
         if (query.isEmpty()) {
