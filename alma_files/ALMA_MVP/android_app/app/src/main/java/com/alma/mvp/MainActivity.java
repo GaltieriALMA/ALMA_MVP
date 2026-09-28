@@ -358,7 +358,7 @@ protected void onResume() {
             try (InputStream in = getContentResolver().openInputStream(cameraImageUri)) {
 
                 if (in != null) {
-                        android.graphics.Bitmap photo = BitmapFactory.decodeStream(in);
+                        BitmapFactory.Options options = new BitmapFactory.Options(); options.inSampleSize = 4; android.graphics.Bitmap photo = BitmapFactory.decodeStream(in, null, options);
 
                                                 ByteArrayOutputStream out = new ByteArrayOutputStream(); photo.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out); messageInput.setText("__IMAGE__:" + Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP)); sendMessage();
                                                     }
