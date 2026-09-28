@@ -141,6 +141,7 @@ public class WakeWordService extends Service
             String token = tokenStore.load();
 
             if (token == null || token.trim().isEmpty()) {
+                handler.postDelayed(this::preloadWakeAcknowledgement, 1500);
                 return;
             }
 
@@ -190,7 +191,7 @@ public class WakeWordService extends Service
                 || normalized.contains("poneme")
                 || normalized.contains("reproduci");
 
-        if (!wantsVideo || !wantsSearch) {
+        if (!wantsVideo) {
             return false;
         }
 
