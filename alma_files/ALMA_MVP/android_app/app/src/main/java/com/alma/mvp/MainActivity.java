@@ -449,6 +449,7 @@ protected void onResume() {
         new Thread(() -> {
             try {
                 String reply = message.startsWith("__IMAGE__:") ? api.chatWithImage(userId, sessionId, "Mirá esta imagen y contame qué ves", message.substring(10), "image/jpeg", token) : api.chat(userId, sessionId, message, token);
+                if (openYoutubeReply(reply)) { runOnUiThread(() -> sendButton.setEnabled(true)); return; }
                 byte[] audio = api.tts(reply, token);
 
                 runOnUiThread(() -> {
@@ -483,6 +484,8 @@ protected void onResume() {
             }
         }).start();
     }
+
+    private boolean openYoutubeReply(String r){int p=r.indexOf("youtube.com/watch?v=");if(p<0)return false;int s=p+20,e=s;String ok="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";while(e<r.length()&&ok.indexOf(r.charAt(e))>=0)e++;String id=r.substring(s,e);if(id.isEmpty())return false;runOnUiThread(()->{waitingForResponse=false;append("ALMA: Abriendo video en YouTube");Intent i=new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/watch?v="+id));i.setPackage("com.google.android.youtube");try{startActivity(i);}catch(Exception ex){i.setPackage(null);startActivity(i);}});return true;}
 
     private void playAudio(byte[] audio) {
         try {
