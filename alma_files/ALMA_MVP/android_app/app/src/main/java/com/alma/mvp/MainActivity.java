@@ -2,6 +2,10 @@ package com.alma.mvp;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.provider.MediaStore;
+import android.graphics.BitmapFactory;
 import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
@@ -21,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -42,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
     private SpeechRecognizer speechRecognizer;
     private Intent speechRecognizerIntent;
     private MediaPlayer currentPlayer;
+    private Uri cameraImageUri;
 
     private boolean handsFreeMode = false;
     private boolean conversationActive = false;
@@ -96,7 +102,15 @@ cameraButton.setOnClickListener(v -> openCamera());
         return;
     }
 
-    Intent cameraIntent = new Intent("android.media.action.IMAGE_CAPTURE");
+    Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+    ContentValues values = new ContentValues();
+    values.put(MediaStore.Images.Media.DISPLAY_NAME, "ALMA_" + System.currentTimeMillis() + ".jpg");
+    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+    cameraImageUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+    if (cameraImageUri != null) {
+        cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraImageUri);
+        cameraIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    }
 
     if (cameraIntent.resolveActivity(getPackageManager()) != null) {
         startActivityForResult(cameraIntent, 3001);
@@ -340,12 +354,11 @@ protected void onResume() {
 
             startWakeWordListening();
         }
-    if (requestCode == 3001 && resultCode == RESULT_OK && data != null) {
-            Bundle extras = data.getExtras();
+    if (requestCode == 3001 && resultCode == RESULT_OK) {
+            try (InputStream in = getContentResolver().openInputStream(cameraImageUri)) {
 
-                if (extras != null && extras.get("data") != null) {
-                        android.graphics.Bitmap photo =
-                                        (android.graphics.Bitmap) extras.get("data");
+                if (in != null) {
+                        android.graphics.Bitmap photo = BitmapFactory.decodeStream(in);
 
                                                 ByteArrayOutputStream out = new ByteArrayOutputStream(); photo.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out); messageInput.setText("__IMAGE__:" + Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP)); sendMessage();
                                                     }
