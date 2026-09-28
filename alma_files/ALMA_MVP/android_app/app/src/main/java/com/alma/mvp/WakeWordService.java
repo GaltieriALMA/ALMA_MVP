@@ -175,7 +175,7 @@ public class WakeWordService extends Service
 
     private boolean handleVideoCommand(String message) {
         String normalized = normalize(message);
-        String[] prefixes = {"busca un video de ", "busca video de ", "mostrame un video de ", "mostra un video de "};
+        String[] prefixes = {"busca un video de ", "busca video de ", "buscar un video de ", "buscar video de ", "buscame un video de ", "buscame video de ", "busca en youtube ", "buscame en youtube ", "mostrame un video de ", "mostra un video de ", "pone un video de ", "poneme un video de ", "reproduci un video de ", "reproducir un video de "};
         for (String prefix : prefixes) {
             if (normalized.startsWith(prefix)) {
                 String query = normalized.substring(prefix.length()).trim();
