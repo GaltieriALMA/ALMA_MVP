@@ -203,19 +203,39 @@ public class WakeWordService extends Service
         }
 
         try {
-            Intent videoIntent = new Intent(
-                    Intent.ACTION_VIEW,
-                    android.net.Uri.parse(
-                            "https://www.youtube.com/results?search_query="
-                                    + android.net.Uri.encode(query)
-                    )
+            Intent playIntent = new Intent(
+                    MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH
             );
-            videoIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(videoIntent);
-            updateNotification("Buscando video: " + query);
+            playIntent.setPackage("com.google.android.youtube");
+            playIntent.putExtra(
+                    android.app.SearchManager.QUERY,
+                    query
+            );
+            playIntent.putExtra(
+                    MediaStore.EXTRA_MEDIA_FOCUS,
+                    "vnd.android.cursor.item/*"
+            );
+            playIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(playIntent);
+
+            updateNotification("Reproduciendo: " + query);
             resetToWakeMode();
+
         } catch (Exception e) {
-            updateNotification("No pude abrir YouTube");
+            try {
+                Intent fallback = new Intent(
+                        Intent.ACTION_VIEW,
+                        android.net.Uri.parse(
+                                "https://www.youtube.com/results?search_query="
+                                        + android.net.Uri.encode(query)
+                        )
+                );
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(fallback);
+            } catch (Exception ignored) {
+                updateNotification("No pude abrir YouTube");
+            }
+
             resetToWakeMode();
         }
 
