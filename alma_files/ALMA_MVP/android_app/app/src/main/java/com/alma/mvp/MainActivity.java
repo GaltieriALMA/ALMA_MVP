@@ -363,6 +363,7 @@ protected void onResume() {
                                                 ByteArrayOutputStream out = new ByteArrayOutputStream(); photo.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out); messageInput.setText("__IMAGE__:" + Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP)); sendMessage();
                                                     }
                                                     }
+            catch (Exception e) { append("ALMA: No pude procesar la foto."); }
     }
     
 
