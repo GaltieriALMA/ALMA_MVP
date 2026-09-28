@@ -230,6 +230,13 @@ private final Runnable partialWakeRunnable = () -> {
 
                 if (read == 0) continue;
 
+                for (int i = 0; i < read; i++) {
+                    int amplified = buffer[i] * 3;
+                    if (amplified > Short.MAX_VALUE) amplified = Short.MAX_VALUE;
+                    if (amplified < Short.MIN_VALUE) amplified = Short.MIN_VALUE;
+                    buffer[i] = (short) amplified;
+                }
+
                 if (currentRecognizer.acceptWaveForm(buffer, read)) {
                     String hypothesis = currentRecognizer.getResult();
                     handler.post(() -> handleResult(hypothesis));
