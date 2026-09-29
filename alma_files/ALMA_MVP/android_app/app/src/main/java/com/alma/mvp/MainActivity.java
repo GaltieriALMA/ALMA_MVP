@@ -245,7 +245,7 @@ protected void onResume() {
         String normalized = heard.toLowerCase(Locale.ROOT);
 
         if (!conversationActive) {
-            if (!normalized.matches(".*\\balma\\b.*")) {
+            if (!normalized.matches("^alma\\b.*")) {
                 startWakeWordListening();
                 return;
             }
