@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - hardening/chat-auth
+      - alma-next
   workflow_dispatch:
 
 jobs:
