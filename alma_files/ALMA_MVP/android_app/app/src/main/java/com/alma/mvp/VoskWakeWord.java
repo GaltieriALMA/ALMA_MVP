@@ -65,7 +65,7 @@ public final class VoskWakeWord {
     private int conversationPeak = 0;
     private double conversationEnergy = 0.0;
     private long conversationSamples = 0L;
-    private static final double MIN_CONVERSATION_RMS = 650.0;
+    private static final double MIN_CONVERSATION_RMS = 1400.0;
 private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
 private volatile String pendingWakePartial = "";
 
