@@ -157,11 +157,7 @@ private final Runnable partialWakeRunnable = () -> {
 
         try {
             if (desiredMode == Mode.WAKE) {
-                recognizer = new Recognizer(
-                        model,
-                        SAMPLE_RATE,
-                        "[\"alma\", \"[unk]\"]"
-                );
+                recognizer = new Recognizer(model, SAMPLE_RATE);
             } else if (desiredMode == Mode.INTERRUPT) {
                 recognizer = new Recognizer(
                         model,
@@ -452,7 +448,8 @@ private double wakeConfidenceFromJson(String hypothesis) {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text) && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
+            if ("alma".equalsIgnoreCase(text.trim())
+                    && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
               handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";  
                 wakeDetected(text);
