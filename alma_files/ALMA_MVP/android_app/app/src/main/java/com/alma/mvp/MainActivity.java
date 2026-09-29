@@ -1,6 +1,12 @@
 package com.alma.mvp;
 
 import android.Manifest;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.Intent;
 import android.content.ContentValues;
 import android.net.Uri;
@@ -41,6 +47,24 @@ public class MainActivity extends AppCompatActivity {
     private Button sendButton;
     private Button voiceButton;
     private Button cameraButton;
+    private ImageView almaImage;
+    private AnimatorSet avatarSpeakingAnimator;
+    private boolean speakingReceiverRegistered = false;
+
+    private static final String ACTION_SPEAKING_STATE =
+            "com.alma.mvp.SPEAKING_STATE";
+
+    private final BroadcastReceiver speakingReceiver =
+            new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (intent.getBooleanExtra("speaking", false)) {
+                        startAvatarSpeakingAnimation();
+                    } else {
+                        stopAvatarSpeakingAnimation();
+                    }
+                }
+            };
     private TextToSpeech tts;
     private SecureTokenStore tokenStore;
 
@@ -78,6 +102,7 @@ public class MainActivity extends AppCompatActivity {
         sendButton = findViewById(R.id.sendButton);
         voiceButton = findViewById(R.id.voiceButton);
 cameraButton = findViewById(R.id.cameraButton);
+        almaImage = findViewById(R.id.almaImage);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
 cameraButton.setOnClickListener(v -> openCamera());
         tts = new TextToSpeech(this, status -> {
@@ -96,6 +121,106 @@ cameraButton.setOnClickListener(v -> openCamera());
             }
         });
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        IntentFilter filter =
+                new IntentFilter(ACTION_SPEAKING_STATE);
+
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(
+                        speakingReceiver,
+                        filter,
+                        Context.RECEIVER_NOT_EXPORTED
+                );
+            } else {
+                registerReceiver(speakingReceiver, filter);
+            }
+            speakingReceiverRegistered = true;
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        if (speakingReceiverRegistered) {
+            try {
+                unregisterReceiver(speakingReceiver);
+            } catch (Exception ignored) {
+            }
+            speakingReceiverRegistered = false;
+        }
+
+        stopAvatarSpeakingAnimation();
+        super.onStop();
+    }
+
+    private void startAvatarSpeakingAnimation() {
+        if (almaImage == null) return;
+
+        if (avatarSpeakingAnimator != null
+                && avatarSpeakingAnimator.isRunning()) {
+            return;
+        }
+
+        ObjectAnimator scaleX =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "scaleX",
+                        1.0f,
+                        1.03f,
+                        1.0f
+                );
+
+        ObjectAnimator scaleY =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "scaleY",
+                        1.0f,
+                        1.03f,
+                        1.0f
+                );
+
+        ObjectAnimator moveY =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "translationY",
+                        0f,
+                        -6f,
+                        0f
+                );
+
+        for (ObjectAnimator animator :
+                new ObjectAnimator[]{scaleX, scaleY, moveY}) {
+            animator.setDuration(900L);
+            animator.setRepeatCount(ValueAnimator.INFINITE);
+        }
+
+        avatarSpeakingAnimator = new AnimatorSet();
+        avatarSpeakingAnimator.playTogether(
+                scaleX,
+                scaleY,
+                moveY
+        );
+        avatarSpeakingAnimator.start();
+    }
+
+    private void stopAvatarSpeakingAnimation() {
+        if (avatarSpeakingAnimator != null) {
+            avatarSpeakingAnimator.cancel();
+            avatarSpeakingAnimator = null;
+        }
+
+        if (almaImage != null) {
+            almaImage.setScaleX(1.0f);
+            almaImage.setScaleY(1.0f);
+            almaImage.setTranslationY(0f);
+        }
+    }
+
  private void openCamera() {
     if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
         requestPermissions(new String[]{Manifest.permission.CAMERA}, 2002);
@@ -490,6 +615,7 @@ protected void onResume() {
     private void playAudio(byte[] audio) {
         try {
             audioPlaying = true;
+            startAvatarSpeakingAnimation();
 
             if (speechRecognizer != null) {
                 try {
@@ -517,6 +643,7 @@ protected void onResume() {
                 file.delete();
 
                 audioPlaying = false;
+                stopAvatarSpeakingAnimation();
                 resumeHandsFreeAfterResponse();
             });
 
@@ -526,6 +653,7 @@ protected void onResume() {
                 file.delete();
 
                 audioPlaying = false;
+                stopAvatarSpeakingAnimation();
                 resumeHandsFreeAfterResponse();
                 return true;
             });
@@ -540,6 +668,7 @@ protected void onResume() {
             currentPlayer.start();
         } catch (Exception e) {
             audioPlaying = false;
+            stopAvatarSpeakingAnimation();
             append("ALMA: No pude reproducir la voz.");
             resumeHandsFreeAfterResponse();
         }
@@ -567,6 +696,7 @@ protected void onResume() {
 
     @Override
     protected void onDestroy() {
+        stopAvatarSpeakingAnimation();
         handsFreeMode = false;
         handler.removeCallbacksAndMessages(null);
 

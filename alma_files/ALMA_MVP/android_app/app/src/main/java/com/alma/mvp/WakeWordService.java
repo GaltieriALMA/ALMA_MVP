@@ -25,6 +25,8 @@ public class WakeWordService extends Service
     private static final String CHANNEL_ID =
             "alma_hands_free_silent_v3";
     private static final int NOTIFICATION_ID = 41;
+    private static final String ACTION_SPEAKING_STATE =
+            "com.alma.mvp.SPEAKING_STATE";
     private static final long CONVERSATION_IDLE_MS = 10000L;
 
     private static final Pattern END_PHRASE = Pattern.compile(
@@ -158,6 +160,7 @@ public class WakeWordService extends Service
         if (destroyed || voskWakeWord == null) return;
 
         speaking = false;
+        broadcastSpeakingState(false);
         conversationActive = true;
         updateNotification("Conversación activa");
 
@@ -359,12 +362,20 @@ public class WakeWordService extends Service
         }, "ALMA-TTS").start();
     }
 
+    private void broadcastSpeakingState(boolean isSpeaking) {
+        Intent intent = new Intent(ACTION_SPEAKING_STATE);
+        intent.setPackage(getPackageName());
+        intent.putExtra("speaking", isSpeaking);
+        sendBroadcast(intent);
+    }
+
     private void playAudio(
             byte[] audio,
             Runnable afterPlayback
     ) {
         try {
             speaking = true;
+            broadcastSpeakingState(true);
 
             if (voskWakeWord != null) {
                 voskWakeWord.stopListening();
@@ -404,6 +415,7 @@ public class WakeWordService extends Service
                 currentAudioFile = null;
                 file.delete();
                 speaking = false;
+                broadcastSpeakingState(false);
 
                 if (afterPlayback != null) {
                     afterPlayback.run();
@@ -420,6 +432,7 @@ public class WakeWordService extends Service
                         currentPlayer = null;
                         file.delete();
                         speaking = false;
+                        broadcastSpeakingState(false);
 
                         if (afterPlayback != null) {
                             afterPlayback.run();
@@ -437,6 +450,7 @@ public class WakeWordService extends Service
 
         } catch (Exception e) {
             speaking = false;
+            broadcastSpeakingState(false);
 
             if (afterPlayback != null) {
                 afterPlayback.run();
@@ -651,6 +665,7 @@ public class WakeWordService extends Service
 
     @Override
     public void onDestroy() {
+        broadcastSpeakingState(false);
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
 
