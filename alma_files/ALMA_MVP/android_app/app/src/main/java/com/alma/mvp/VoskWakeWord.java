@@ -66,7 +66,8 @@ public final class VoskWakeWord {
     private double conversationEnergy = 0.0;
     private long conversationSamples = 0L;
     private static final double MIN_CONVERSATION_RMS = 1400.0;
-private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
+private static final double MIN_WAKE_CONFIDENCE = 0.90;
+    private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
 private volatile String pendingWakePartial = "";
 
 private final Runnable partialWakeRunnable = () -> {
@@ -342,7 +343,32 @@ private final Runnable partialWakeRunnable = () -> {
             return "";
         }
     }
+private double wakeConfidenceFromJson(String hypothesis) {
+    try {
+        JSONObject root = new JSONObject(hypothesis);
+        org.json.JSONArray words = root.optJSONArray("result");
 
+        if (words == null) return 0.0;
+
+        double bestConfidence = 0.0;
+
+        for (int i = 0; i < words.length(); i++) {
+            JSONObject word = words.optJSONObject(i);
+            if (word == null) continue;
+
+            if ("alma".equalsIgnoreCase(word.optString("word", ""))) {
+                bestConfidence = Math.max(
+                        bestConfidence,
+                        word.optDouble("conf", 0.0)
+                );
+            }
+        }
+
+        return bestConfidence;
+    } catch (Exception ignored) {
+        return 0.0;
+    }
+}
     private boolean containsWakeWord(String text) {
         if (text == null || text.isEmpty()) return false;
 
@@ -426,7 +452,7 @@ private final Runnable partialWakeRunnable = () -> {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) {
+            if (containsWakeWord(text) && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
               handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";  
                 wakeDetected(text);
