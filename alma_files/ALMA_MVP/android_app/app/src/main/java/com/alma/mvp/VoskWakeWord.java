@@ -407,8 +407,8 @@ private double wakeConfidenceFromJson(String hypothesis) {
                 ? Math.sqrt(conversationEnergy / conversationSamples)
                 : 0.0;
 
-        if ((localText.isEmpty() && conversationPeak < 500)
-                || rms < MIN_CONVERSATION_RMS) {
+        if (localText.isEmpty()
+                && (conversationPeak < 500 || rms < MIN_CONVERSATION_RMS)) {
             conversationAudio = new ByteArrayOutputStream();
             conversationPeak = 0;
             conversationEnergy = 0.0;
