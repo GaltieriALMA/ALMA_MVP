@@ -434,16 +434,6 @@ public class WakeWordService extends Service
 
             updateNotification("ALMA está hablando");
 
-            MediaPlayer interruptPlayer = currentPlayer;
-
-            handler.postDelayed(() -> {
-                if (!destroyed
-                        && speaking
-                        && currentPlayer == interruptPlayer
-                        && voskWakeWord != null) {
-                    voskWakeWord.startInterrupt();
-                }
-            }, 600L);
 
         } catch (Exception e) {
             speaking = false;
