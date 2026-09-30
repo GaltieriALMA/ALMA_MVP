@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private Button sendButton;
     private Button voiceButton;
     private Button cameraButton;
-    private ImageView almaImage;
+    private AlmaAvatarView almaImage;
     private AnimatorSet avatarSpeakingAnimator;
     private boolean speakingReceiverRegistered = false;
 
@@ -167,58 +167,52 @@ cameraButton.setOnClickListener(v -> openCamera());
             return;
         }
 
-        almaImage.post(() -> {
-            almaImage.setPivotX(almaImage.getWidth() / 2f);
-            almaImage.setPivotY(almaImage.getHeight() * 0.88f);
+        ObjectAnimator head =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "headRotation",
+                        0f, 1.8f, -1.2f, 1.0f, 0f
+                );
 
-            PropertyValuesHolder moveX =
-                    PropertyValuesHolder.ofFloat(
-                            "translationX",
-                            0f, 7f, -5f, 6f, -3f, 0f
-                    );
+        ObjectAnimator torso =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "torsoRotation",
+                        0f, -0.7f, 0.8f, -0.4f, 0f
+                );
 
-            PropertyValuesHolder moveY =
-                    PropertyValuesHolder.ofFloat(
-                            "translationY",
-                            0f, -3f, 0f, -5f, -2f, 0f
-                    );
+        ObjectAnimator breath =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "breathScale",
+                        1.0f, 1.012f, 1.0f, 1.009f, 1.0f
+                );
 
-            PropertyValuesHolder rotate =
-                    PropertyValuesHolder.ofFloat(
-                            "rotation",
-                            0f, 1.4f, -1.1f, 0.9f, -0.6f, 0f
-                    );
+        ObjectAnimator rise =
+                ObjectAnimator.ofFloat(
+                        almaImage,
+                        "bodyShiftY",
+                        0f, -2f, 0f, -1f, 0f
+                );
 
-            PropertyValuesHolder scaleX =
-                    PropertyValuesHolder.ofFloat(
-                            "scaleX",
-                            1.0f, 1.012f, 1.0f, 1.016f, 1.006f, 1.0f
-                    );
+        head.setDuration(2400L);
+        torso.setDuration(2800L);
+        breath.setDuration(2100L);
+        rise.setDuration(2600L);
 
-            PropertyValuesHolder scaleY =
-                    PropertyValuesHolder.ofFloat(
-                            "scaleY",
-                            1.0f, 1.018f, 1.004f, 1.014f, 1.006f, 1.0f
-                    );
+        head.setRepeatCount(ValueAnimator.INFINITE);
+        torso.setRepeatCount(ValueAnimator.INFINITE);
+        breath.setRepeatCount(ValueAnimator.INFINITE);
+        rise.setRepeatCount(ValueAnimator.INFINITE);
 
-            ObjectAnimator bodyGesture =
-                    ObjectAnimator.ofPropertyValuesHolder(
-                            almaImage,
-                            moveX,
-                            moveY,
-                            rotate,
-                            scaleX,
-                            scaleY
-                    );
-
-            bodyGesture.setDuration(2600L);
-            bodyGesture.setRepeatCount(ValueAnimator.INFINITE);
-            bodyGesture.setRepeatMode(ValueAnimator.RESTART);
-
-            avatarSpeakingAnimator = new AnimatorSet();
-            avatarSpeakingAnimator.play(bodyGesture);
-            avatarSpeakingAnimator.start();
-        });
+        avatarSpeakingAnimator = new AnimatorSet();
+        avatarSpeakingAnimator.playTogether(
+                head,
+                torso,
+                breath,
+                rise
+        );
+        avatarSpeakingAnimator.start();
     }
 
     private void stopAvatarSpeakingAnimation() {
@@ -228,9 +222,7 @@ cameraButton.setOnClickListener(v -> openCamera());
         }
 
         if (almaImage != null) {
-            almaImage.setScaleX(1.0f);
-            almaImage.setScaleY(1.0f);
-            almaImage.setTranslationY(0f);
+            almaImage.resetPose();
         }
     }
 
