@@ -3,6 +3,7 @@ package com.alma.mvp;
 import android.Manifest;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.animation.ValueAnimator;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -166,46 +167,58 @@ cameraButton.setOnClickListener(v -> openCamera());
             return;
         }
 
-        ObjectAnimator scaleX =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "scaleX",
-                        1.0f,
-                        1.03f,
-                        1.0f
-                );
+        almaImage.post(() -> {
+            almaImage.setPivotX(almaImage.getWidth() / 2f);
+            almaImage.setPivotY(almaImage.getHeight() * 0.88f);
 
-        ObjectAnimator scaleY =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "scaleY",
-                        1.0f,
-                        1.03f,
-                        1.0f
-                );
+            PropertyValuesHolder moveX =
+                    PropertyValuesHolder.ofFloat(
+                            "translationX",
+                            0f, 7f, -5f, 6f, -3f, 0f
+                    );
 
-        ObjectAnimator moveY =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "translationY",
-                        0f,
-                        -6f,
-                        0f
-                );
+            PropertyValuesHolder moveY =
+                    PropertyValuesHolder.ofFloat(
+                            "translationY",
+                            0f, -3f, 0f, -5f, -2f, 0f
+                    );
 
-        for (ObjectAnimator animator :
-                new ObjectAnimator[]{scaleX, scaleY, moveY}) {
-            animator.setDuration(900L);
-            animator.setRepeatCount(ValueAnimator.INFINITE);
-        }
+            PropertyValuesHolder rotate =
+                    PropertyValuesHolder.ofFloat(
+                            "rotation",
+                            0f, 1.4f, -1.1f, 0.9f, -0.6f, 0f
+                    );
 
-        avatarSpeakingAnimator = new AnimatorSet();
-        avatarSpeakingAnimator.playTogether(
-                scaleX,
-                scaleY,
-                moveY
-        );
-        avatarSpeakingAnimator.start();
+            PropertyValuesHolder scaleX =
+                    PropertyValuesHolder.ofFloat(
+                            "scaleX",
+                            1.0f, 1.012f, 1.0f, 1.016f, 1.006f, 1.0f
+                    );
+
+            PropertyValuesHolder scaleY =
+                    PropertyValuesHolder.ofFloat(
+                            "scaleY",
+                            1.0f, 1.018f, 1.004f, 1.014f, 1.006f, 1.0f
+                    );
+
+            ObjectAnimator bodyGesture =
+                    ObjectAnimator.ofPropertyValuesHolder(
+                            almaImage,
+                            moveX,
+                            moveY,
+                            rotate,
+                            scaleX,
+                            scaleY
+                    );
+
+            bodyGesture.setDuration(2600L);
+            bodyGesture.setRepeatCount(ValueAnimator.INFINITE);
+            bodyGesture.setRepeatMode(ValueAnimator.RESTART);
+
+            avatarSpeakingAnimator = new AnimatorSet();
+            avatarSpeakingAnimator.play(bodyGesture);
+            avatarSpeakingAnimator.start();
+        });
     }
 
     private void stopAvatarSpeakingAnimation() {
