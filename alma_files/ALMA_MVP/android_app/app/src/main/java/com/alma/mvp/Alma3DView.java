@@ -98,7 +98,7 @@ public class Alma3DView extends FrameLayout {
             try (InputStream input =
                          getContext()
                                  .getAssets()
-                                 .open("models/alma_meshy.glb")) {
+                                 .open("models/alma_meshy_textured.glb")) {
 
                 byte[] bytes = new byte[input.available()];
 
