@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private Button sendButton;
     private Button voiceButton;
     private Button cameraButton;
-    private AlmaAvatarView almaImage;
+    private Alma3DView almaImage;
     private AnimatorSet avatarSpeakingAnimator;
     private boolean speakingReceiverRegistered = false;
 
@@ -160,69 +160,14 @@ cameraButton.setOnClickListener(v -> openCamera());
     }
 
     private void startAvatarSpeakingAnimation() {
-        if (almaImage == null) return;
-
-        if (avatarSpeakingAnimator != null
-                && avatarSpeakingAnimator.isRunning()) {
-            return;
+        if (almaImage != null) {
+            almaImage.setSpeaking(true);
         }
-
-        ObjectAnimator head =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "headRotation",
-                        0f, 1.8f, -1.2f, 1.0f, 0f
-                );
-
-        ObjectAnimator torso =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "torsoRotation",
-                        0f, -0.7f, 0.8f, -0.4f, 0f
-                );
-
-        ObjectAnimator breath =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "breathScale",
-                        1.0f, 1.012f, 1.0f, 1.009f, 1.0f
-                );
-
-        ObjectAnimator rise =
-                ObjectAnimator.ofFloat(
-                        almaImage,
-                        "bodyShiftY",
-                        0f, -2f, 0f, -1f, 0f
-                );
-
-        head.setDuration(2400L);
-        torso.setDuration(2800L);
-        breath.setDuration(2100L);
-        rise.setDuration(2600L);
-
-        head.setRepeatCount(ValueAnimator.INFINITE);
-        torso.setRepeatCount(ValueAnimator.INFINITE);
-        breath.setRepeatCount(ValueAnimator.INFINITE);
-        rise.setRepeatCount(ValueAnimator.INFINITE);
-
-        avatarSpeakingAnimator = new AnimatorSet();
-        avatarSpeakingAnimator.playTogether(
-                head,
-                torso,
-                breath,
-                rise
-        );
-        avatarSpeakingAnimator.start();
     }
 
     private void stopAvatarSpeakingAnimation() {
-        if (avatarSpeakingAnimator != null) {
-            avatarSpeakingAnimator.cancel();
-            avatarSpeakingAnimator = null;
-        }
-
         if (almaImage != null) {
-            almaImage.resetPose();
+            almaImage.setSpeaking(false);
         }
     }
 
