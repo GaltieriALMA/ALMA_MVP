@@ -247,20 +247,37 @@ cameraButton.setOnClickListener(v -> openCamera());
 protected void onResume() {
     super.onResume();
 
-    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) {
         startHandsFreeService();
+    } else {
+        requestPermissions(
+                new String[]{Manifest.permission.RECORD_AUDIO},
+                AUDIO_PERMISSION_REQUEST_CODE
+        );
     }
 }
     private void startHandsFreeService() {
-    Intent serviceIntent = new Intent(this, WakeWordService.class);
+        Intent serviceIntent =
+                new Intent(this, WakeWordService.class);
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        startForegroundService(serviceIntent);
-    } else {
-        startService(serviceIntent);
-    }
- 
- }   private void setupHandsFreeRecognition() {
+        try {
+            stopService(serviceIntent);
+        } catch (Exception ignored) {
+        }
+
+        handler.postDelayed(() -> {
+            try {
+                if (Build.VERSION.SDK_INT
+                        >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+            } catch (Exception ignored) {
+            }
+        }, 500L);
+    }   private void setupHandsFreeRecognition() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             append("ALMA: El reconocimiento de voz no está disponible.");
             return;
