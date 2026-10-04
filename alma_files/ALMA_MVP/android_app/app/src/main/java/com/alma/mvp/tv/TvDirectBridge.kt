@@ -108,7 +108,8 @@ object TvDirectBridge {
                 val prefs = activity.getSharedPreferences(PREFS, 0)
                 var host = prefs.getString(HOST_KEY, DEFAULT_HOST) ?: DEFAULT_HOST
 
-                if (!portOpen(host, 6466, 600) && !portOpen(host, 6467, 600)) {
+                if ((remote == null || remoteHost != host || remote?.isConnected != true) &&
+                    !portOpen(host, 6466, 600) && !portOpen(host, 6467, 600)) {
                     host = discoverHost(activity) ?: run {
                         answer(callback, false, "No pude encontrar el televisor.")
                         return@withLock
@@ -154,8 +155,8 @@ object TvDirectBridge {
                     "mute" -> AtvKey.VOLUME_MUTE
                     "home" -> AtvKey.HOME
                     "back" -> AtvKey.BACK
-                    "power_off" -> 223
-                    "power_on" -> 224
+                    "power_off" -> AtvKey.POWER
+                    "power_on" -> AtvKey.POWER
                     else -> null
                 }
 
