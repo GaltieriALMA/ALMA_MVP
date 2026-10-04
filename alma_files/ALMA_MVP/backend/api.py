@@ -436,6 +436,15 @@ def chat(
             context = alma.context_builder.build(request.user_id, request.message, alma.sessions.recent(request.user_id, request.session_id))
             response = client.responses.create(model=alma.provider.openai.model, instructions=context, input=[{"role": "user", "content": [{"type": "input_text", "text": request.message}, {"type": "input_image", "image_url": f"data:{request.mime_type};base64,{request.image_base64}"}]}])
             return ChatResponse(text=response.output_text.strip(), provider="openai", valid=True, issues=[])
+        market_text = market_answer(request.message)
+        if market_text:
+            return ChatResponse(
+                text=market_text,
+                provider="market",
+                valid=True,
+                issues=[]
+            )
+
         result = alma.chat(
             user_id=request.user_id,
             session_id=request.session_id,
