@@ -429,6 +429,10 @@ protected void onResume() {
             return null;
         }
 
+        if (n.contains("apaga") || n.contains("apagar")) {
+            return "power";
+        }
+
         if (n.contains("volumen") &&
                 (n.contains("subi") || n.contains("sube") || n.contains("aumenta"))) {
             return "volume_up";
@@ -492,6 +496,9 @@ protected void onResume() {
                             break;
                         case "mute":
                             reply = "Cambié el silencio del televisor.";
+                            break;
+                        case "power":
+                            reply = "Apagué el televisor.";
                             break;
                         case "home":
                             reply = "Abrí la pantalla principal del televisor.";
