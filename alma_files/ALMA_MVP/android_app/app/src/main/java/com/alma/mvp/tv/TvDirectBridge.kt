@@ -24,8 +24,8 @@ object TvDirectBridge {
 
     private const val PREFS = "alma_tv_direct"
     private const val HOST_KEY = "host"
-    private const val DEFAULT_HOST = "192.168.1.20"
-    private const val TV_MAC = "1c:79:2d:56:0f:d8"
+    private const val DEFAULT_HOST = "192.168.1.19"
+    private const val TV_MAC = "b0:1c:0c:a2:52:c5"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val commandMutex = Mutex()
