@@ -460,10 +460,6 @@ protected void onResume() {
             return false;
         }
 
-        if (handleLocalTvCommand(message, token)) {
-            return;
-        }
-
         handler.removeCallbacks(conversationTimeoutRunnable);
         waitingForResponse = true;
 
@@ -546,6 +542,10 @@ protected void onResume() {
         if (token == null) {
             requestAccessKey();
             startWakeWordListening();
+            return;
+        }
+
+        if (handleLocalTvCommand(message, token)) {
             return;
         }
 
