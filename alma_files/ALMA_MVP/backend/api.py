@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from backend.app import AlmaApplication
 from fastapi.responses import Response
 from backend.providers.tts_provider import ElevenLabsTTSProvider
+from backend.smart_home import detect_smart_home_intent
 app = FastAPI(
     title="ALMA MVP API",
     version="1.0.0",
@@ -436,6 +437,26 @@ def chat(
             context = alma.context_builder.build(request.user_id, request.message, alma.sessions.recent(request.user_id, request.session_id))
             response = client.responses.create(model=alma.provider.openai.model, instructions=context, input=[{"role": "user", "content": [{"type": "input_text", "text": request.message}, {"type": "input_image", "image_url": f"data:{request.mime_type};base64,{request.image_base64}"}]}])
             return ChatResponse(text=response.output_text.strip(), provider="openai", valid=True, issues=[])
+        smart = detect_smart_home_intent(request.message)
+        if smart:
+            action_names = {
+                "turn_on": "encender",
+                "turn_off": "apagar",
+                "set_temperature": "configurar",
+            }
+            action = action_names.get(smart["action"], smart["action"])
+            extra = (
+                f" en {smart['value']} grados"
+                if smart.get("value") is not None
+                else ""
+            )
+            return ChatResponse(
+                text=f"Entendí la orden: {action} {smart['target']}{extra}. Todavía no hay un dispositivo autorizado vinculado.",
+                provider="smart_home",
+                valid=True,
+                issues=[]
+            )
+
         market_text = market_answer(request.message)
         if market_text:
             return ChatResponse(
