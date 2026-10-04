@@ -7,7 +7,10 @@ import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.Socket
@@ -21,7 +24,8 @@ object TvDirectBridge {
 
     private const val PREFS = "alma_tv_direct"
     private const val HOST_KEY = "host"
-    private const val DEFAULT_HOST = "192.168.1.7"
+    private const val DEFAULT_HOST = "192.168.1.19"
+    private const val TV_MAC = "b0:1c:0c:a2:52:c5"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val commandMutex = Mutex()
@@ -108,6 +112,34 @@ object TvDirectBridge {
                 val prefs = activity.getSharedPreferences(PREFS, 0)
                 var host = prefs.getString(HOST_KEY, DEFAULT_HOST) ?: DEFAULT_HOST
 
+                if (action == "power_on" &&
+                    (remote == null || remoteHost != host || remote?.isConnected != true)) {
+
+                    wakeByLan(host)
+
+                    var online = false
+                    for (i in 0 until 24) {
+                        if (portOpen(host, 6466, 400)) {
+                            online = true
+                            break
+                        }
+                        delay(500)
+                    }
+
+                    if (!online) {
+                        val found = discoverHost(activity)
+                        if (found != null) {
+                            host = found
+                            online = true
+                        }
+                    }
+
+                    if (!online) {
+                        answer(callback, true, "Envié la señal de encendido al televisor.")
+                        return@withLock
+                    }
+                }
+
                 if ((remote == null || remoteHost != host || remote?.isConnected != true) &&
                     !portOpen(host, 6466, 600) && !portOpen(host, 6467, 600)) {
                     host = discoverHost(activity) ?: run {
@@ -156,7 +188,7 @@ object TvDirectBridge {
                     "home" -> AtvKey.HOME
                     "back" -> AtvKey.BACK
                     "power_off" -> AtvKey.POWER
-                    "power_on" -> AtvKey.POWER
+                    "power_on" -> 224
                     else -> null
                 }
 
@@ -228,6 +260,38 @@ object TvDirectBridge {
             }
         } finally {
             pool.shutdownNow()
+        }
+    }
+
+    private fun wakeByLan(host: String) {
+        runCatching {
+            val mac = TV_MAC.split(":").map { it.toInt(16).toByte() }.toByteArray()
+            val data = ByteArray(6 + 16 * mac.size)
+
+            for (i in 0 until 6) data[i] = 0xFF.toByte()
+            for (i in 6 until data.size) {
+                data[i] = mac[(i - 6) % mac.size]
+            }
+
+            val parts = host.split(".")
+            val targets = linkedSetOf("255.255.255.255")
+
+            if (parts.size == 4) {
+                targets.add("${parts[0]}.${parts[1]}.${parts[2]}.255")
+            }
+
+            DatagramSocket().use { socket ->
+                socket.broadcast = true
+
+                repeat(10) {
+                    for (target in targets) {
+                        val address = InetAddress.getByName(target)
+                        socket.send(DatagramPacket(data, data.size, address, 9))
+                        socket.send(DatagramPacket(data, data.size, address, 7))
+                    }
+                    Thread.sleep(150)
+                }
+            }
         }
     }
 
