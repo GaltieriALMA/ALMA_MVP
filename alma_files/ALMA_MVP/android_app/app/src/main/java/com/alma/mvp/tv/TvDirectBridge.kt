@@ -5,6 +5,8 @@ import android.text.InputType
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
@@ -22,6 +24,10 @@ object TvDirectBridge {
     private const val DEFAULT_HOST = "192.168.1.7"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val commandMutex = Mutex()
+
+    @Volatile private var remote: AtvRemoteClient? = null
+    @Volatile private var remoteHost: String? = null
 
     @JvmStatic
     fun pair(activity: Activity, callback: Callback) {
@@ -39,9 +45,8 @@ object TvDirectBridge {
             }
 
             val session = AtvPairingSession(host, identity)
-            val started = session.start("ALMA")
 
-            if (started.isFailure) {
+            if (session.start("ALMA").isFailure) {
                 answer(callback, false, "No pude iniciar la vinculación con la TV.")
                 return@launch
             }
@@ -54,12 +59,10 @@ object TvDirectBridge {
 
                 val dialog = AlertDialog.Builder(activity)
                     .setTitle("Vincular ALMA con la TV")
-                    .setMessage("Ingresá el código que aparece en la pantalla del televisor. Se hace una sola vez.")
+                    .setMessage("Ingresá el código que aparece en la TV. Esto se hace una sola vez.")
                     .setView(input)
                     .setPositiveButton("Vincular", null)
-                    .setNegativeButton("Cancelar") { _, _ ->
-                        session.close()
-                    }
+                    .setNegativeButton("Cancelar") { _, _ -> session.close() }
                     .create()
 
                 dialog.setOnShowListener {
@@ -75,15 +78,15 @@ object TvDirectBridge {
                                     .putString(HOST_KEY, host)
                                     .apply()
 
+                                remote?.close()
+                                remote = null
+                                remoteHost = null
+
                                 withContext(Dispatchers.Main) {
                                     dialog.dismiss()
                                 }
 
-                                answer(
-                                    callback,
-                                    true,
-                                    "Televisor vinculado. ALMA ya puede controlarlo directamente."
-                                )
+                                answer(callback, true, "Televisor vinculado con ALMA.")
                             } else {
                                 withContext(Dispatchers.Main) {
                                     input.error = "Revisá el código de la TV"
@@ -101,71 +104,84 @@ object TvDirectBridge {
     @JvmStatic
     fun send(activity: Activity, action: String, callback: Callback) {
         scope.launch {
-            val prefs = activity.getSharedPreferences(PREFS, 0)
-            var host = prefs.getString(HOST_KEY, DEFAULT_HOST) ?: DEFAULT_HOST
+            commandMutex.withLock {
+                val prefs = activity.getSharedPreferences(PREFS, 0)
+                var host = prefs.getString(HOST_KEY, DEFAULT_HOST) ?: DEFAULT_HOST
 
-            if (!portOpen(host, 6466, 500) && !portOpen(host, 6467, 500)) {
-                host = discoverHost(activity) ?: run {
-                    answer(callback, false, "No pude encontrar el televisor.")
-                    return@launch
+                if (!portOpen(host, 6466, 600) && !portOpen(host, 6467, 600)) {
+                    host = discoverHost(activity) ?: run {
+                        answer(callback, false, "No pude encontrar el televisor.")
+                        return@withLock
+                    }
                 }
+
+                val identity = runCatching {
+                    AtvCertificateStore.identity(activity.applicationContext)
+                }.getOrElse {
+                    answer(callback, false, "No pude acceder a la vinculación de la TV.")
+                    return@withLock
+                }
+
+                var client = remote
+
+                if (client == null || remoteHost != host || !client.isConnected) {
+                    runCatching { client?.close() }
+
+                    client = AtvRemoteClient(
+                        host,
+                        identity,
+                        onDisconnect = {
+                            remote = null
+                            remoteHost = null
+                        }
+                    )
+
+                    if (client.connect().isFailure) {
+                        client.close()
+                        remote = null
+                        remoteHost = null
+                        answer(callback, false, "No pude comunicarme con la TV.")
+                        return@withLock
+                    }
+
+                    remote = client
+                    remoteHost = host
+                }
+
+                val key = when (action) {
+                    "volume_up" -> AtvKey.VOLUME_UP
+                    "volume_down" -> AtvKey.VOLUME_DOWN
+                    "mute" -> AtvKey.VOLUME_MUTE
+                    "home" -> AtvKey.HOME
+                    "back" -> AtvKey.BACK
+                    "power_off" -> 223
+                    "power_on" -> 224
+                    else -> null
+                }
+
+                if (key == null) {
+                    answer(callback, false, "No reconocí esa orden para la TV.")
+                    return@withLock
+                }
+
+                client.sendKey(key)
+                delay(300)
+
+                prefs.edit().putString(HOST_KEY, host).apply()
+
+                val reply = when (action) {
+                    "volume_up" -> "Subí el volumen del televisor."
+                    "volume_down" -> "Bajé el volumen del televisor."
+                    "mute" -> "Cambié el silencio del televisor."
+                    "home" -> "Abrí la pantalla principal del televisor."
+                    "back" -> "Volví atrás en el televisor."
+                    "power_off" -> "Apagué el televisor."
+                    "power_on" -> "Encendí el televisor."
+                    else -> "Listo."
+                }
+
+                answer(callback, true, reply)
             }
-
-            val identity = runCatching {
-                AtvCertificateStore.identity(activity.applicationContext)
-            }.getOrElse {
-                answer(callback, false, "No pude acceder a la vinculación de la TV.")
-                return@launch
-            }
-
-            val client = AtvRemoteClient(host, identity)
-            val connected = client.connect()
-
-            if (connected.isFailure) {
-                client.close()
-                answer(
-                    callback,
-                    false,
-                    "La TV todavía no autorizó a ALMA. Decime: ALMA, vinculá la TV."
-                )
-                return@launch
-            }
-
-            val key = when (action) {
-                "volume_up" -> AtvKey.VOLUME_UP
-                "volume_down" -> AtvKey.VOLUME_DOWN
-                "mute" -> AtvKey.VOLUME_MUTE
-                "home" -> AtvKey.HOME
-                "back" -> AtvKey.BACK
-                "power_off" -> 223
-                "power_on" -> 224
-                else -> null
-            }
-
-            if (key == null) {
-                client.close()
-                answer(callback, false, "No reconocí esa orden para la TV.")
-                return@launch
-            }
-
-            client.sendKey(key)
-            delay(700)
-            client.close()
-
-            prefs.edit().putString(HOST_KEY, host).apply()
-
-            val reply = when (action) {
-                "volume_up" -> "Subí el volumen del televisor."
-                "volume_down" -> "Bajé el volumen del televisor."
-                "mute" -> "Cambié el silencio del televisor."
-                "home" -> "Abrí la pantalla principal del televisor."
-                "back" -> "Volví atrás en el televisor."
-                "power_off" -> "Apagué el televisor."
-                "power_on" -> "Encendí el televisor."
-                else -> "Listo."
-            }
-
-            answer(callback, true, reply)
         }
     }
 
