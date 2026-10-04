@@ -15,8 +15,8 @@ android {
         applicationId = "com.alma.mvp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 36
-        versionName = "0.6.3"
+        versionCode = 37
+        versionName = "0.7.0"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }

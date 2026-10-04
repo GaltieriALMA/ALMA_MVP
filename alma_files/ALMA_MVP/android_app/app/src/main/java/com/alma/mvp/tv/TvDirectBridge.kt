@@ -181,13 +181,29 @@ object TvDirectBridge {
                     remoteHost = host
                 }
 
+                if (action == "power_off") {
+                    val off = powerOffAdaptive(prefs, host, client)
+
+                    prefs.edit().putString(HOST_KEY, host).apply()
+
+                    if (off) {
+                        answer(callback, true, "Apagué el televisor.")
+                    } else {
+                        answer(
+                            callback,
+                            false,
+                            "Este televisor no acepta apagado por Android TV. Paso al método alternativo."
+                        )
+                    }
+                    return@withLock
+                }
+
                 val key = when (action) {
                     "volume_up" -> AtvKey.VOLUME_UP
                     "volume_down" -> AtvKey.VOLUME_DOWN
                     "mute" -> AtvKey.VOLUME_MUTE
                     "home" -> AtvKey.HOME
                     "back" -> AtvKey.BACK
-                    "power_off" -> 223
                     "power_on" -> 224
                     else -> null
                 }
@@ -216,6 +232,62 @@ object TvDirectBridge {
                 answer(callback, true, reply)
             }
         }
+    }
+
+    private suspend fun powerOffAdaptive(
+        prefs: android.content.SharedPreferences,
+        host: String,
+        client: AtvRemoteClient
+    ): Boolean {
+        val strategyKey = "power_off_key_$host"
+        val supportKey = "power_off_network_supported_$host"
+
+        if (prefs.contains(supportKey) &&
+            !prefs.getBoolean(supportKey, true)) {
+            return false
+        }
+
+        val candidates = mutableListOf<Int>()
+        val saved = prefs.getInt(strategyKey, -1)
+
+        if (saved > 0) {
+            candidates.add(saved)
+        }
+
+        for (candidate in intArrayOf(AtvKey.POWER, 223, 177)) {
+            if (!candidates.contains(candidate)) {
+                candidates.add(candidate)
+            }
+        }
+
+        for (candidate in candidates) {
+            val wasOn = client.isOn
+
+            client.sendKey(candidate)
+
+            repeat(10) {
+                delay(300)
+
+                val connectionDropped = !client.isConnected
+                val remotePortClosed = !portOpen(host, 6466, 250)
+                val powerStateChanged = wasOn && !client.isOn
+
+                if (connectionDropped || remotePortClosed || powerStateChanged) {
+                    prefs.edit()
+                        .putInt(strategyKey, candidate)
+                        .putBoolean(supportKey, true)
+                        .apply()
+
+                    return true
+                }
+            }
+        }
+
+        prefs.edit()
+            .putBoolean(supportKey, false)
+            .apply()
+
+        return false
     }
 
     private suspend fun answer(callback: Callback, ok: Boolean, message: String) {
