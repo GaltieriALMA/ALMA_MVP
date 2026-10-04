@@ -187,7 +187,7 @@ object TvDirectBridge {
                     "mute" -> AtvKey.VOLUME_MUTE
                     "home" -> AtvKey.HOME
                     "back" -> AtvKey.BACK
-                    "power_off" -> AtvKey.POWER
+                    "power_off" -> 177
                     "power_on" -> 224
                     else -> null
                 }
