@@ -33,6 +33,7 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
     private final AlmaApiClient api = new AlmaApiClient();
+    private final SmartHomeLocalClient smartHome = new SmartHomeLocalClient();
     private final String userId = "android_local_user";
     private final String sessionId = UUID.randomUUID().toString();
 
@@ -416,6 +417,122 @@ protected void onResume() {
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
+    }
+
+    private String localTvAction(String message) {
+        String n = java.text.Normalizer.normalize(
+                message.toLowerCase(Locale.ROOT),
+                java.text.Normalizer.Form.NFD
+        ).replaceAll("\\p{M}", "");
+
+        if (!(n.contains("televisor") || n.contains("tele") || n.contains("tv"))) {
+            return null;
+        }
+
+        if (n.contains("volumen") &&
+                (n.contains("subi") || n.contains("sube") || n.contains("aumenta"))) {
+            return "volume_up";
+        }
+
+        if (n.contains("volumen") &&
+                (n.contains("baja") || n.contains("baje") || n.contains("disminui"))) {
+            return "volume_down";
+        }
+
+        if (n.contains("silencio") || n.contains("silencia") || n.contains("mute")) {
+            return "mute";
+        }
+
+        if (n.contains("inicio") || n.contains("home") || n.contains("pantalla principal")) {
+            return "home";
+        }
+
+        if (n.contains("atras") || n.contains("volver") || n.contains("volve")) {
+            return "back";
+        }
+
+        return null;
+    }
+
+    private boolean handleLocalTvCommand(String message, String token) {
+        String action = localTvAction(message);
+        if (action == null) {
+            return false;
+        }
+
+        if (handleLocalTvCommand(message, token)) {
+            return;
+        }
+
+        handler.removeCallbacks(conversationTimeoutRunnable);
+        waitingForResponse = true;
+
+        if (speechRecognizer != null) {
+            try {
+                speechRecognizer.cancel();
+            } catch (Exception ignored) {
+            }
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+        sendButton.setEnabled(false);
+
+        new Thread(() -> {
+            String reply;
+
+            try {
+                boolean ok = smartHome.send(action);
+
+                if (!ok) {
+                    reply = "No pude controlar el televisor.";
+                } else {
+                    switch (action) {
+                        case "volume_up":
+                            reply = "Subí el volumen del televisor.";
+                            break;
+                        case "volume_down":
+                            reply = "Bajé el volumen del televisor.";
+                            break;
+                        case "mute":
+                            reply = "Cambié el silencio del televisor.";
+                            break;
+                        case "home":
+                            reply = "Abrí la pantalla principal del televisor.";
+                            break;
+                        case "back":
+                            reply = "Volví atrás en el televisor.";
+                            break;
+                        default:
+                            reply = "Listo.";
+                    }
+                }
+            } catch (Exception e) {
+                reply = "No pude comunicarme con el televisor.";
+            }
+
+            final String finalReply = reply;
+
+            try {
+                byte[] audio = api.tts(finalReply, token);
+
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: " + finalReply);
+                    playAudio(audio);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: " + finalReply);
+                    resumeHandsFreeAfterResponse();
+                });
+            }
+        }).start();
+
+        return true;
     }
 
     private void sendMessage() {
