@@ -23,6 +23,8 @@ import android.widget.*;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.alma.mvp.tv.TvDirectBridge;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -33,7 +35,6 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
     private final AlmaApiClient api = new AlmaApiClient();
-    private final SmartHomeLocalClient smartHome = new SmartHomeLocalClient();
     private final String userId = "android_local_user";
     private final String sessionId = UUID.randomUUID().toString();
 
@@ -429,11 +430,19 @@ protected void onResume() {
             return null;
         }
 
-        if (n.contains("apaga") || n.contains("apagar") ||
-                n.contains("enciende") || n.contains("encende") ||
+        if (n.contains("vincula") || n.contains("empareja") ||
+                n.contains("conecta")) {
+            return "pair";
+        }
+
+        if (n.contains("apaga") || n.contains("apagar")) {
+            return "power_off";
+        }
+
+        if (n.contains("enciende") || n.contains("encende") ||
                 n.contains("encender") || n.contains("prende") ||
                 n.contains("prender")) {
-            return "power";
+            return "power_on";
         }
 
         if (n.contains("volumen") &&
@@ -481,64 +490,38 @@ protected void onResume() {
         messageInput.setText("");
         sendButton.setEnabled(false);
 
+        TvDirectBridge.Callback callback = (ok, reply) ->
+                runOnUiThread(() -> finishTvCommand(reply, token));
+
+        if ("pair".equals(action)) {
+            TvDirectBridge.pair(this, callback);
+        } else {
+            TvDirectBridge.send(this, action, callback);
+        }
+
+        return true;
+    }
+
+    private void finishTvCommand(String reply, String token) {
         new Thread(() -> {
-            String reply;
-
             try {
-                boolean ok = smartHome.send(action);
-
-                if (!ok) {
-                    reply = "No pude controlar el televisor.";
-                } else {
-                    switch (action) {
-                        case "volume_up":
-                            reply = "Subí el volumen del televisor.";
-                            break;
-                        case "volume_down":
-                            reply = "Bajé el volumen del televisor.";
-                            break;
-                        case "mute":
-                            reply = "Cambié el silencio del televisor.";
-                            break;
-                        case "power":
-                            reply = "Cambié el estado del televisor.";
-                            break;
-                        case "home":
-                            reply = "Abrí la pantalla principal del televisor.";
-                            break;
-                        case "back":
-                            reply = "Volví atrás en el televisor.";
-                            break;
-                        default:
-                            reply = "Listo.";
-                    }
-                }
-            } catch (Exception e) {
-                reply = "No pude comunicarme con el televisor.";
-            }
-
-            final String finalReply = reply;
-
-            try {
-                byte[] audio = api.tts(finalReply, token);
+                byte[] audio = api.tts(reply, token);
 
                 runOnUiThread(() -> {
                     waitingForResponse = false;
                     sendButton.setEnabled(true);
-                    append("ALMA: " + finalReply);
+                    append("ALMA: " + reply);
                     playAudio(audio);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     waitingForResponse = false;
                     sendButton.setEnabled(true);
-                    append("ALMA: " + finalReply);
+                    append("ALMA: " + reply);
                     resumeHandsFreeAfterResponse();
                 });
             }
         }).start();
-
-        return true;
     }
 
     private void sendMessage() {

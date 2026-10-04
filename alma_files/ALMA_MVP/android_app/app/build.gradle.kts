@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 val almaBaseUrl = "https://alma-mvp.onrender.com"
 
@@ -14,8 +15,8 @@ android {
         applicationId = "com.alma.mvp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.5.5"
+        versionCode = 29
+        versionName = "0.5.6"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
@@ -28,9 +29,25 @@ android {
             isMinifyEnabled = false
         }
     }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
 }
 
 dependencies {
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
     implementation("com.google.android.filament:filament-android:1.75.1")
     implementation("com.google.android.filament:gltfio-android:1.75.1")
     implementation("com.google.android.filament:filament-utils-android:1.75.1")
