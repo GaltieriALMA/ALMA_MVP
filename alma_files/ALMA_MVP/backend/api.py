@@ -489,14 +489,34 @@ def youtube_search(
     if not query:
         raise HTTPException(status_code=400, detail="Falta la búsqueda.")
 
+    def video_disponible(video_id: str) -> bool:
+        try:
+            params = urlencode({
+                "url": f"https://www.youtube.com/watch?v={video_id}",
+                "format": "json",
+            })
+            with urlopen(
+                "https://www.youtube.com/oembed?" + params,
+                timeout=8,
+            ) as response:
+                data = json.load(response)
+            return bool(data.get("title"))
+        except Exception:
+            return False
+
     youtube_key = os.getenv("YOUTUBE_API_KEY", "").strip()
 
     if youtube_key:
         params = urlencode({
             "part": "snippet",
             "type": "video",
-            "maxResults": 1,
+            "maxResults": 8,
             "q": query,
+            "regionCode": "AR",
+            "relevanceLanguage": "es",
+            "videoEmbeddable": "true",
+            "videoSyndicated": "true",
+            "safeSearch": "moderate",
             "key": youtube_key,
         })
 
@@ -507,16 +527,13 @@ def youtube_search(
             ) as response:
                 data = json.load(response)
 
-            items = data.get("items") or []
-
-            if items:
-                item = items[0]
+            for item in data.get("items") or []:
                 video_id = (
                     ((item.get("id") or {}).get("videoId") or "")
                     .strip()
                 )
 
-                if video_id:
+                if video_id and video_disponible(video_id):
                     return {
                         "video_id": video_id,
                         "title": (
@@ -551,10 +568,10 @@ def youtube_search(
             tool_choice="required",
             include=["web_search_call.action.sources"],
             input=(
-                "Buscá en YouTube el video que mejor coincida con: "
+                "Buscá en YouTube varios videos que coincidan con: "
                 + query
-                + ". Priorizá el video oficial cuando exista. "
-                  "Necesito un enlace directo reproducible del video."
+                + ". Priorizá canal oficial, video oficial y enlaces directos "
+                  "youtube.com/watch. No inventes enlaces."
             ),
         )
 
@@ -563,31 +580,32 @@ def youtube_search(
             ensure_ascii=False,
         )
 
-        patterns = [
+        encontrados = []
+        patrones = [
             r'youtube\.com/watch\?[^"\\\s]*?v=([A-Za-z0-9_-]{11})',
             r'youtu\.be/([A-Za-z0-9_-]{11})',
             r'youtube\.com/shorts/([A-Za-z0-9_-]{11})',
         ]
 
-        for pattern in patterns:
-            match = re.search(pattern, raw)
-            if match:
+        for patron in patrones:
+            for video_id in re.findall(patron, raw):
+                if video_id not in encontrados:
+                    encontrados.append(video_id)
+
+        for video_id in encontrados:
+            if video_disponible(video_id):
                 return {
-                    "video_id": match.group(1),
+                    "video_id": video_id,
                     "title": query,
                 }
 
-    except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="ALMA no pudo buscar el video en YouTube.",
-        ) from exc
+    except Exception:
+        pass
 
     raise HTTPException(
         status_code=404,
-        detail="No encontré un video reproducible.",
+        detail="No encontré un video disponible y reproducible.",
     )
-
 
 
 @app.get("/market/quote")
