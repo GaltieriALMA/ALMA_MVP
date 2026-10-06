@@ -4,6 +4,8 @@
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 <uses-permission android:name="android.permission.WAKE_LOCK" />
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
  <uses-permission android:name="android.permission.CAMERA" />   
     <application
         android:allowBackup="false"
@@ -14,7 +16,16 @@
             android:name=".WakeWordService"
             android:exported="false"
             android:foregroundServiceType="microphone"
-            android:stopWithTask="false" /> <activity
+            android:stopWithTask="false" /> <receiver
+            android:name=".alarm.AlmaAlarmReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".alarm.AlmaAlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>

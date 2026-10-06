@@ -24,6 +24,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.alma.mvp.tv.TvDirectBridge;
+import com.alma.mvp.alarm.AlmaAlarmCommand;
+import com.alma.mvp.alarm.AlmaAlarmScheduler;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -524,6 +526,61 @@ protected void onResume() {
         }).start();
     }
 
+
+    private boolean handleLocalAlarmCommand(String message, String token) {
+        AlmaAlarmCommand.Parsed parsed = AlmaAlarmCommand.parse(message);
+
+        if (parsed == null) {
+            return false;
+        }
+
+        boolean exact = AlmaAlarmScheduler.schedule(
+                this,
+                parsed.triggerAtMillis
+        );
+
+        String reply = String.format(
+                Locale.ROOT,
+                "Listo. Te despierto a las %02d:%02d.",
+                parsed.hour,
+                parsed.minute
+        );
+
+        if (!exact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            reply += " Android todavía no me dio permiso para alarmas exactas.";
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+        sendButton.setEnabled(false);
+        waitingForResponse = true;
+
+        String finalReply = reply;
+
+        new Thread(() -> {
+            try {
+                byte[] audio = api.tts(finalReply, token);
+
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: " + finalReply);
+                    playAudio(audio);
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: " + finalReply);
+                    resumeHandsFreeAfterResponse();
+                });
+            }
+        }).start();
+
+        return true;
+    }
+
     private void sendMessage() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
@@ -539,6 +596,10 @@ protected void onResume() {
         }
 
         if (handleLocalTvCommand(message, token)) {
+            return;
+        }
+
+        if (handleLocalAlarmCommand(message, token)) {
             return;
         }
 
