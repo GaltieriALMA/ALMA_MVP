@@ -37,9 +37,11 @@ class MemoryManager:
 
         headers = {
             "apikey": self.supabase_key,
-            "Authorization": "Bearer " + self.supabase_key,
             "Content-Type": "application/json",
         }
+
+        if not self.supabase_key.startswith("sb_secret_"):
+            headers["Authorization"] = "Bearer " + self.supabase_key
 
         if prefer:
             headers["Prefer"] = prefer
