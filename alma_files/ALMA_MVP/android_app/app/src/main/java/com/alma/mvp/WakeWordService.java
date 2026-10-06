@@ -11,6 +11,7 @@ import android.provider.MediaStore;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -21,6 +22,11 @@ import java.util.regex.Pattern;
 
 public class WakeWordService extends Service
         implements VoskWakeWord.Listener {
+
+    public static final String ACTION_PAUSE_LISTENING =
+            "com.alma.mvp.PAUSE_LISTENING";
+    public static final String ACTION_RESUME_LISTENING =
+            "com.alma.mvp.RESUME_LISTENING";
 
     private static final String CHANNEL_ID =
             "alma_hands_free_silent_v3";
@@ -47,6 +53,8 @@ public class WakeWordService extends Service
     private boolean speaking = false;
     private boolean conversationActive = false;
     private boolean destroyed = false;
+    private boolean paused = false;
+    private PowerManager.WakeLock wakeLock;
 
     private volatile byte[] wakeAckAudio;
 
@@ -64,6 +72,18 @@ public class WakeWordService extends Service
                 buildNotification("Esperando que digas \"ALMA\"")
         );
 
+        PowerManager powerManager =
+                (PowerManager) getSystemService(POWER_SERVICE);
+
+        if (powerManager != null) {
+            wakeLock = powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "ALMA:HandsFree"
+            );
+            wakeLock.setReferenceCounted(false);
+            wakeLock.acquire();
+        }
+
         preloadWakeAcknowledgement();
         voskWakeWord.startWake();
     }
@@ -74,6 +94,26 @@ public class WakeWordService extends Service
             int flags,
             int startId
     ) {
+        String action = intent == null ? null : intent.getAction();
+
+        if (ACTION_PAUSE_LISTENING.equals(action)) {
+            paused = true;
+            conversationActive = false;
+
+            if (voskWakeWord != null) {
+                voskWakeWord.stopListening();
+            }
+
+            updateNotification("Micrófono pausado temporalmente");
+            return START_STICKY;
+        }
+
+        if (ACTION_RESUME_LISTENING.equals(action)) {
+            paused = false;
+            resetToWakeMode();
+            return START_STICKY;
+        }
+
         return START_STICKY;
     }
 
@@ -167,7 +207,7 @@ public class WakeWordService extends Service
     }
 
     private void resetToWakeMode() {
-        if (destroyed || voskWakeWord == null) return;
+        if (destroyed || paused || voskWakeWord == null) return;
 
         speaking = false;
         conversationActive = false;
@@ -508,7 +548,7 @@ public class WakeWordService extends Service
 
     @Override
     public void onWakeWord(String recognizedText) {
-        if (destroyed || speaking) return;
+        if (destroyed || paused || speaking) return;
 
         activateConversation(recognizedText);
     }
@@ -557,7 +597,7 @@ public class WakeWordService extends Service
 
     @Override
     public void onConversationAudio(byte[] pcm16, String localText) {
-        if (destroyed || speaking) return;
+        if (destroyed || paused || speaking) return;
 
         speaking = true;
         updateNotification("Entendiendo tu voz");
@@ -628,15 +668,25 @@ public class WakeWordService extends Service
 
     @Override
     public void onError(Exception error) {
-        if (destroyed) return;
+        if (destroyed || paused) return;
 
         if (speaking) {
             updateNotification("ALMA está hablando");
             return;
         }
 
+        String detail = error == null
+                ? "error desconocido"
+                : error.getClass().getSimpleName()
+                  + ": "
+                  + String.valueOf(error.getMessage());
+
+        if (detail.length() > 80) {
+            detail = detail.substring(0, 80);
+        }
+
         updateNotification(
-                "Reiniciando reconocimiento"
+                "Reiniciando · " + detail
         );
 
         if (voskWakeWord != null) {
@@ -645,7 +695,7 @@ public class WakeWordService extends Service
 
         handler.postDelayed(
                 this::resetToWakeMode,
-                800
+                1500
         );
     }
 
@@ -665,6 +715,13 @@ public class WakeWordService extends Service
             } catch (Exception ignored) {
             }
             currentPlayer = null;
+        }
+
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try {
+                wakeLock.release();
+            } catch (Exception ignored) {
+            }
         }
 
         super.onDestroy();

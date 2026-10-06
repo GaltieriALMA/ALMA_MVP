@@ -152,6 +152,44 @@ private final Runnable partialWakeRunnable = () -> {
     }
 
     @SuppressLint("MissingPermission")
+    private AudioRecord createCompatibleAudioRecord(int bufferBytes) {
+        int[] sources = new int[] {
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                MediaRecorder.AudioSource.MIC
+        };
+
+        for (int source : sources) {
+            AudioRecord candidate = null;
+
+            try {
+                candidate = new AudioRecord(
+                        source,
+                        (int) SAMPLE_RATE,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                        bufferBytes
+                );
+
+                if (candidate.getState() == AudioRecord.STATE_INITIALIZED) {
+                    return candidate;
+                }
+            } catch (Exception ignored) {
+            }
+
+            if (candidate != null) {
+                try {
+                    candidate.release();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        throw new IllegalStateException(
+                "No se pudo abrir el micrófono de ALMA"
+        );
+    }
+
+    @SuppressLint("MissingPermission")
     private void startDesiredMode() {
         if (destroyed || model == null || desiredMode == Mode.NONE) return;
 
@@ -185,19 +223,7 @@ private final Runnable partialWakeRunnable = () -> {
 
             int bufferBytes = Math.max(minBufferBytes, 6400);
 
-            audioRecord = new AudioRecord(
-                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                    (int) SAMPLE_RATE,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    bufferBytes
-            );
-
-            if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
-                throw new IllegalStateException(
-                        "No se pudo inicializar el micrófono"
-                );
-            }
+            audioRecord = createCompatibleAudioRecord(bufferBytes);
 
             activeMode = desiredMode;
             stopRequested = false;
