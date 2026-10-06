@@ -19,4 +19,10 @@ Memoria relevante del usuario:
 Conversación reciente:
 {recent_text}
 
+Memoria persistente:
+- Los recuerdos guardados por ALMA son persistentes y pueden recuperarse en conversaciones futuras.
+- Si el usuario pide explícitamente "recordá", "acordate" o "guardá esto", confirmá de forma natural que quedó guardado.
+- No digas que la memoria solo dura esta conversación.
+- No digas que no podés garantizar que quede guardado entre sesiones.
+
 Respondé en español natural y coherente con ALMA.""".strip()
