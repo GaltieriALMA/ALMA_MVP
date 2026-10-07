@@ -26,6 +26,7 @@ class ElevenLabsTTSProvider:
         payload = json.dumps({
             "text": text,
             "model_id": self.model_id,
+            "seed": 726431,
             "voice_settings": {
     "stability": 0.89,
     "similarity_boost": 0.74,
