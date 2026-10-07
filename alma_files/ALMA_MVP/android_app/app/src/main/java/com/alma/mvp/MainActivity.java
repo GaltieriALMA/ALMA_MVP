@@ -38,7 +38,7 @@ import java.util.UUID;
 public class MainActivity extends AppCompatActivity {
     private final AlmaApiClient api = new AlmaApiClient();
     private final String userId = "android_local_user";
-    private final String sessionId = UUID.randomUUID().toString();
+    private String sessionId;
 
     private TextView chatText;
     private EditText messageInput;
@@ -76,6 +76,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         tokenStore = new SecureTokenStore(this);
+
+        sessionId = getSharedPreferences("alma_chat", MODE_PRIVATE)
+                .getString("session_id", "");
+
+        if (sessionId.isEmpty()) {
+            sessionId = UUID.randomUUID().toString();
+            getSharedPreferences("alma_chat", MODE_PRIVATE)
+                    .edit()
+                    .putString("session_id", sessionId)
+                    .apply();
+        }
 
         chatText = findViewById(R.id.chatText);
 
