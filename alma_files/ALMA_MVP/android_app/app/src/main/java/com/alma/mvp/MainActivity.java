@@ -555,7 +555,8 @@ protected void onResume() {
 
         boolean exact = AlmaAlarmScheduler.schedule(
                 this,
-                parsed.triggerAtMillis
+                parsed.triggerAtMillis,
+                parsed.reminderText
         );
 
         String reply = String.format(

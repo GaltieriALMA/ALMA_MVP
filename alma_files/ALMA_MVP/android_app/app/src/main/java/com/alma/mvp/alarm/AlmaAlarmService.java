@@ -4,6 +4,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -12,8 +13,13 @@ import android.speech.tts.UtteranceProgressListener;
 
 import androidx.core.app.NotificationCompat;
 
+import com.alma.mvp.AlmaApiClient;
+import com.alma.mvp.SecureTokenStore;
+
 import com.alma.mvp.R;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.Locale;
 
 public class AlmaAlarmService extends Service {
@@ -50,52 +56,120 @@ public class AlmaAlarmService extends Service {
 
         wakeLock.acquire(60_000L);
 
-        tts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(new Locale("es", "AR"));
-                tts.setSpeechRate(0.88f);
-                tts.setPitch(1.00f);
+    }
 
-                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override
-                    public void onStart(String utteranceId) {}
 
-                    @Override
-                    public void onDone(String utteranceId) {
-                        stopSelf();
-                    }
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        String reminderText = "";
 
-                    @Override
-                    public void onError(String utteranceId) {
-                        stopSelf();
-                    }
-                });
+        if (intent != null) {
+            String received = intent.getStringExtra(
+                    AlmaAlarmScheduler.EXTRA_REMINDER_TEXT
+            );
 
-                // ALMA_ALARM_STOP_SELF
-                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override
-                    public void onStart(String utteranceId) {}
-
-                    @Override
-                    public void onDone(String utteranceId) {
-                        stopSelf();
-                    }
-
-                    @Override
-                    public void onError(String utteranceId) {
-                        stopSelf();
-                    }
-                });
-
-                tts.speak(
-                        "Buen día Alejandro. Es hora de levantarse.",
-                        TextToSpeech.QUEUE_FLUSH,
-                        null,
-                        "ALMA_ALARM"
-                );
+            if (received != null) {
+                reminderText = received.trim();
             }
+        }
+
+        String spokenText = reminderText.isEmpty()
+                ? "Alejandro, sonó tu alarma."
+                : "Alejandro, te recuerdo: " + reminderText + ".";
+
+        speakWithAlmaVoice(spokenText, startId);
+
+        return START_NOT_STICKY;
+    }
+
+
+
+    private void speakWithAlmaVoice(String text, int startId) {
+        new Thread(() -> {
+            try {
+                String token = new SecureTokenStore(this).load();
+
+                if (token == null || token.trim().isEmpty()) {
+                    fallbackAndroidVoice(text, startId);
+                    return;
+                }
+
+                byte[] audio = new AlmaApiClient().tts(text, token);
+
+                File file = File.createTempFile(
+                        "alma_alarm_",
+                        ".mp3",
+                        getCacheDir()
+                );
+
+                try (FileOutputStream out = new FileOutputStream(file)) {
+                    out.write(audio);
+                }
+
+                MediaPlayer player = new MediaPlayer();
+                player.setDataSource(file.getAbsolutePath());
+
+                player.setOnCompletionListener(mp -> {
+                    mp.release();
+                    file.delete();
+                    stopSelf(startId);
+                });
+
+                player.setOnErrorListener((mp, what, extra) -> {
+                    mp.release();
+                    file.delete();
+                    fallbackAndroidVoice(text, startId);
+                    return true;
+                });
+
+                player.prepare();
+                player.start();
+
+            } catch (Exception e) {
+                fallbackAndroidVoice(text, startId);
+            }
+        }, "ALMA-Alarm-Voice").start();
+    }
+
+
+
+    private void fallbackAndroidVoice(String text, int startId) {
+        tts = new TextToSpeech(this, status -> {
+            if (status != TextToSpeech.SUCCESS) {
+                stopSelf(startId);
+                return;
+            }
+
+            tts.setLanguage(new Locale("es", "AR"));
+            tts.setSpeechRate(0.88f);
+            tts.setPitch(1.00f);
+
+            tts.setOnUtteranceProgressListener(
+                    new UtteranceProgressListener() {
+                        @Override
+                        public void onStart(String utteranceId) {}
+
+                        @Override
+                        public void onDone(String utteranceId) {
+                            stopSelf(startId);
+                        }
+
+                        @Override
+                        public void onError(String utteranceId) {
+                            stopSelf(startId);
+                        }
+                    }
+            );
+
+            tts.speak(
+                    text,
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "ALMA_ALARM_FALLBACK"
+            );
         });
     }
+
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
