@@ -78,6 +78,14 @@ public class MainActivity extends AppCompatActivity {
         tokenStore = new SecureTokenStore(this);
 
         chatText = findViewById(R.id.chatText);
+
+        String savedChat = getSharedPreferences("alma_chat", MODE_PRIVATE)
+                .getString("history", "");
+
+        if (!savedChat.isEmpty()) {
+            chatText.setText(savedChat);
+        }
+
         messageInput = findViewById(R.id.messageInput);
         sendButton = findViewById(R.id.sendButton);
         voiceButton = findViewById(R.id.voiceButton);
@@ -734,6 +742,17 @@ protected void onResume() {
 
     private void append(String line) {
         chatText.append("\n\n" + line);
+
+        String history = chatText.getText().toString();
+
+        if (history.length() > 50000) {
+            history = history.substring(history.length() - 50000);
+        }
+
+        getSharedPreferences("alma_chat", MODE_PRIVATE)
+                .edit()
+                .putString("history", history)
+                .apply();
     }
 
     @Override

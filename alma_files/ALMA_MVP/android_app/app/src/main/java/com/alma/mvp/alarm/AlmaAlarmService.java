@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 
 import androidx.core.app.NotificationCompat;
 
@@ -54,6 +55,37 @@ public class AlmaAlarmService extends Service {
                 tts.setLanguage(new Locale("es", "AR"));
                 tts.setSpeechRate(0.88f);
                 tts.setPitch(1.00f);
+
+                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String utteranceId) {}
+
+                    @Override
+                    public void onDone(String utteranceId) {
+                        stopSelf();
+                    }
+
+                    @Override
+                    public void onError(String utteranceId) {
+                        stopSelf();
+                    }
+                });
+
+                // ALMA_ALARM_STOP_SELF
+                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String utteranceId) {}
+
+                    @Override
+                    public void onDone(String utteranceId) {
+                        stopSelf();
+                    }
+
+                    @Override
+                    public void onError(String utteranceId) {
+                        stopSelf();
+                    }
+                });
 
                 tts.speak(
                         "Buen día Alejandro. Es hora de levantarse.",

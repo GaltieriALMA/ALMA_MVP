@@ -30,8 +30,33 @@ public final class AlmaAlarmCommand {
                 Normalizer.Form.NFD
         ).replaceAll("\\p{M}", "");
 
+        text = text.replace("cinco minutos mas", "5 minutos mas");
+
+        Matcher snooze = Pattern.compile(
+                "(?:otros?\\s+)?(\\d{1,3})\\s+minutos?\\s+mas"
+        ).matcher(text);
+
+        if (snooze.find()) {
+            int minutes = Integer.parseInt(snooze.group(1));
+
+            if (minutes < 1 || minutes > 180) {
+                return null;
+            }
+
+            Calendar target = Calendar.getInstance();
+            target.add(Calendar.MINUTE, minutes);
+            target.set(Calendar.SECOND, 0);
+            target.set(Calendar.MILLISECOND, 0);
+
+            return new Parsed(
+                    target.get(Calendar.HOUR_OF_DAY),
+                    target.get(Calendar.MINUTE),
+                    target.getTimeInMillis()
+            );
+        }
+
         boolean alarmIntent =
-                text.contains("despertame")
+                (text.contains("despertame") || text.contains("despiertame"))
                 || text.contains("levantame")
                 || text.contains("alarma")
                 || text.contains("despertador");
