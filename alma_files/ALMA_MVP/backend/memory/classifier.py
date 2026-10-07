@@ -1,6 +1,9 @@
 def classify_memory(message: str) -> str:
     text = (message or "").lower().strip()
 
+    if "?" in text:
+        return "session_only"
+
     if any(k in text for k in (
         "no recuerdes",
         "no guardes",
@@ -42,5 +45,29 @@ def classify_memory(message: str) -> str:
         "quiero lograr",
     )):
         return "goal"
+
+    if any(k in text for k in (
+        "mañana",
+        "pasado mañana",
+        "esta tarde",
+        "esta noche",
+        "reunión",
+        "reunion",
+        "turno",
+        "cita",
+        "tengo que",
+        "voy a",
+        "después",
+        "despues",
+        "antes de",
+        "al final",
+        "ya no",
+        "cambió",
+        "cambio",
+        "cancelé",
+        "cancele",
+        "cancelado",
+    )):
+        return "context_memory"
 
     return "session_only"

@@ -1,4 +1,6 @@
 import json
+import re
+import unicodedata
 import os
 from pathlib import Path
 from datetime import datetime, timezone
@@ -116,6 +118,97 @@ class MemoryManager:
         )
 
         return data if isinstance(data, list) else []
+
+    def _memory_tokens(self, text: str) -> set[str]:
+        value = unicodedata.normalize("NFD", (text or "").lower())
+        value = "".join(
+            c for c in value
+            if unicodedata.category(c) != "Mn"
+        )
+
+        stopwords = {
+            "alma", "que", "una", "uno", "las", "los", "del",
+            "para", "por", "con", "sin", "este", "esta", "esto",
+            "tengo", "tenes", "tienes",
+            "despues", "antes", "final", "ahora",
+        }
+
+        return {
+            token
+            for token in re.findall(r"[a-z0-9]+", value)
+            if len(token) >= 3 and token not in stopwords
+        }
+
+    def supersede_related(self, user_id: str, content: str) -> int:
+        new_tokens = self._memory_tokens(content)
+
+        if not new_tokens:
+            return 0
+
+        active = self.list_active(user_id)
+        candidates = []
+
+        for item in active:
+            old_tokens = self._memory_tokens(item.get("content", ""))
+            overlap = new_tokens & old_tokens
+            score = len(overlap)
+
+            if score >= 2:
+                candidates.append((score, item))
+
+        if not candidates:
+            return 0
+
+        candidates.sort(
+            key=lambda x: (
+                x[0],
+                x[1].get("updated_at", ""),
+            ),
+            reverse=True,
+        )
+
+        matched = [candidates[0][1]]
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        if self.use_supabase:
+            changed = 0
+
+            for item in matched:
+                try:
+                    self._supabase_request(
+                        "PATCH",
+                        {"id": "eq." + item["id"]},
+                        {
+                            "status": "forgotten",
+                            "updated_at": now,
+                        },
+                        "return=minimal",
+                    )
+                    changed += 1
+                except Exception as exc:
+                    print(
+                        "ALMA_MEMORY_SUPABASE_SUPERSEDE_ERROR:",
+                        type(exc).__name__,
+                        str(exc)[:300],
+                    )
+
+            return changed
+
+        data = self._read()
+        ids = {item.get("id") for item in matched}
+        changed = 0
+
+        for item in data:
+            if item.get("id") in ids and item.get("status") == "active":
+                item["status"] = "forgotten"
+                item["updated_at"] = now
+                changed += 1
+
+        if changed:
+            self._write(data)
+
+        return changed
 
     def add(self, user_id: str, kind: str, content: str) -> dict:
         if self.use_supabase:
