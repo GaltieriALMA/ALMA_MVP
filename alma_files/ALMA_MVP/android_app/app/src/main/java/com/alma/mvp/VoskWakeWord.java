@@ -448,8 +448,7 @@ private double wakeConfidenceFromJson(String hypothesis) {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if ("alma".equalsIgnoreCase(text.trim())
-                    && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
+            if (containsWakeWord(text)) {
               handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";  
                 wakeDetected(text);
