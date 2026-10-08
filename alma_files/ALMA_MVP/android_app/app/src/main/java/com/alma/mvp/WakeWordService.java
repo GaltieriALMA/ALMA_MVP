@@ -233,6 +233,36 @@ public class WakeWordService extends Service
         return true;
     }
 
+    private boolean handleMeetingModeCommand(String message) {
+        String n = normalize(message);
+
+        boolean enable =
+                n.equals("modo reunion")
+                || n.equals("activa modo reunion")
+                || n.equals("activar modo reunion")
+                || n.equals("inicia modo reunion")
+                || n.equals("inicia reunion")
+                || n.equals("empeza reunion");
+
+        if (!enable) {
+            return false;
+        }
+
+        getSharedPreferences(
+                "alma_runtime",
+                android.content.Context.MODE_PRIVATE
+        ).edit()
+         .putBoolean("meeting_mode", true)
+         .apply();
+
+        speakAlmaText(
+                "Modo reunión activado. Dejo de escuchar hasta que lo desactives.",
+                this::stopSelf
+        );
+
+        return true;
+    }
+
     private boolean handleComposeRequest(String message) {
         ComposeCommand.Draft draft =
                 ComposeCommand.parse(message);
@@ -487,6 +517,10 @@ public class WakeWordService extends Service
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
+            return;
+        }
+
+        if (handleMeetingModeCommand(message)) {
             return;
         }
 

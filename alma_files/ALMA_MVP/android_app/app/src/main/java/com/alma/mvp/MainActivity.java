@@ -47,6 +47,7 @@ public class MainActivity extends AppCompatActivity {
     private Button cameraButton;
     private Button fileButton;
     private Button shareButton;
+    private Button meetingModeButton;
     private String lastAlmaReply = "";
     private Button liveVisionButton;
     private androidx.camera.view.PreviewView liveVisionPreview;
@@ -113,12 +114,15 @@ public class MainActivity extends AppCompatActivity {
 cameraButton = findViewById(R.id.cameraButton);
         fileButton = findViewById(R.id.fileButton);
         shareButton = findViewById(R.id.shareButton);
+        meetingModeButton = findViewById(R.id.meetingModeButton);
         liveVisionButton = findViewById(R.id.liveVisionButton);
         liveVisionPreview = findViewById(R.id.liveVisionPreview);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
 cameraButton.setOnClickListener(v -> openCamera());
         fileButton.setOnClickListener(v -> openFilePicker());
         shareButton.setOnClickListener(v -> shareLastAlmaReply());
+        meetingModeButton.setOnClickListener(v -> toggleMeetingMode());
+        refreshMeetingModeButton();
         liveVisionButton.setOnClickListener(v -> toggleLiveVision());
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -135,6 +139,49 @@ cameraButton.setOnClickListener(v -> openCamera());
                 sendMessage();
             }
         });
+    }
+
+    private boolean isMeetingMode() {
+        return getSharedPreferences(
+                "alma_runtime",
+                MODE_PRIVATE
+        ).getBoolean("meeting_mode", false);
+    }
+
+    private void refreshMeetingModeButton() {
+        if (meetingModeButton == null) return;
+
+        meetingModeButton.setText(
+                isMeetingMode()
+                        ? "SALIR DE REUNIÓN"
+                        : "MODO REUNIÓN"
+        );
+    }
+
+    private void toggleMeetingMode() {
+        boolean enabled = !isMeetingMode();
+
+        getSharedPreferences(
+                "alma_runtime",
+                MODE_PRIVATE
+        ).edit()
+         .putBoolean("meeting_mode", enabled)
+         .apply();
+
+        if (enabled) {
+            stopService(
+                    new Intent(this, WakeWordService.class)
+            );
+            append("ALMA: Modo reunión activado. No voy a responder a la palabra ALMA.");
+        } else {
+            append("ALMA: Modo reunión desactivado.");
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
+                startHandsFreeService();
+            }
+        }
+
+        refreshMeetingModeButton();
     }
 
     private void toggleLiveVision() {
@@ -386,8 +433,14 @@ protected void onResume() {
     super.onResume();
     android.content.SharedPreferences p=getSharedPreferences("alma_alarm_log",MODE_PRIVATE); if(p.getBoolean("spoken_history_unread",false)){String s=p.getString("spoken_history",""); if(s!=null&&!s.trim().isEmpty()) append("ALMA [alarmas]: "+s); p.edit().putString("spoken_history","").putBoolean("spoken_history_unread",false).apply();}
 
-    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+    refreshMeetingModeButton();
+
+    if (!isMeetingMode()
+            && checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
         startHandsFreeService();
+    } else if (isMeetingMode()) {
+        stopService(new Intent(this, WakeWordService.class));
     }
 }
     private void startHandsFreeService() {

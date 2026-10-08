@@ -76,6 +76,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:text="COMPARTIR" />
+<Button
+    android:id="@+id/meetingModeButton"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="MODO REUNIÓN" />
     <Button
         android:id="@+id/sendButton"
         android:layout_width="match_parent"
