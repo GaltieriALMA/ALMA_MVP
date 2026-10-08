@@ -561,11 +561,6 @@ public class WakeWordService extends Service
     public void onConversationAudio(byte[] pcm16, String localText) {
         if (destroyed || speaking) return;
 
-        String fastText = localText == null ? "" : localText.trim();
-        if (!fastText.isEmpty()) {
-            if (isEndPhrase(fastText)) resetToWakeMode(); else sendToAlma(fastText);
-            return;
-        }
 
         speaking = true;
         updateNotification("Entendiendo tu voz");
