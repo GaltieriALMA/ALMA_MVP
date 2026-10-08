@@ -47,6 +47,7 @@ public class WakeWordService extends Service
     private boolean speaking = false;
     private boolean conversationActive = false;
     private boolean destroyed = false;
+    private ComposeCommand.Draft pendingComposeDraft = null;
 
     private volatile byte[] wakeAckAudio;
     private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
@@ -178,6 +179,140 @@ public class WakeWordService extends Service
         voskWakeWord.startWake();
     }
 
+
+    private boolean handlePendingComposeConfirmation(String message) {
+        if (pendingComposeDraft == null) {
+            return false;
+        }
+
+        String n = normalize(message);
+
+        boolean confirmed =
+                n.equals("si")
+                || n.equals("si envia")
+                || n.equals("si envialo")
+                || n.equals("envia")
+                || n.equals("envialo")
+                || n.equals("confirmo");
+
+        boolean cancelled =
+                n.equals("no")
+                || n.equals("cancela")
+                || n.equals("cancelalo")
+                || n.equals("espera")
+                || n.equals("dejalo");
+
+        if (cancelled) {
+            pendingComposeDraft = null;
+
+            speakAlmaText(
+                    "Cancelado. No envié nada.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
+
+        if (!confirmed) {
+            speakAlmaText(
+                    "No te entendí. Decí sí, enviá, o cancelá.",
+                    this::resumeConversationListening
+            );
+
+            return true;
+        }
+
+        ComposeCommand.Draft draft = pendingComposeDraft;
+        pendingComposeDraft = null;
+
+        speakAlmaText(
+                "Confirmado. Abro el mensaje listo para enviar.",
+                () -> openComposeDraft(draft)
+        );
+
+        return true;
+    }
+
+    private boolean handleComposeRequest(String message) {
+        ComposeCommand.Draft draft =
+                ComposeCommand.parse(message);
+
+        if (draft == null) {
+            return false;
+        }
+
+        pendingComposeDraft = draft;
+
+        String label =
+                "whatsapp".equals(draft.type)
+                        ? "WhatsApp"
+                        : "correo";
+
+        speakAlmaText(
+                "Preparé el " + label
+                        + " que dice: "
+                        + draft.text
+                        + ". ¿Confirmás? Decí sí, enviá, o cancelá.",
+                this::resumeConversationListening
+        );
+
+        return true;
+    }
+
+    private void openComposeDraft(ComposeCommand.Draft draft) {
+        if (draft == null) {
+            resetToWakeMode();
+            return;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT, draft.text);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        try {
+            if ("whatsapp".equals(draft.type)) {
+                intent.setPackage("com.whatsapp");
+
+                try {
+                    startActivity(intent);
+                } catch (Exception first) {
+                    intent.setPackage("com.whatsapp.w4b");
+                    startActivity(intent);
+                }
+
+            } else {
+                intent.setPackage("com.google.android.gm");
+                startActivity(intent);
+            }
+
+            speaking = false;
+            stopSelf();
+
+        } catch (Exception e) {
+            intent.setPackage(null);
+
+            try {
+                Intent chooser =
+                        Intent.createChooser(
+                                intent,
+                                "Enviar mensaje"
+                        );
+
+                chooser.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+                );
+
+                startActivity(chooser);
+                speaking = false;
+                stopSelf();
+
+            } catch (Exception ignored) {
+                speaking = false;
+                resetToWakeMode();
+            }
+        }
+    }
 
     private boolean handleNavigationCommand(String message) {
         String destination =
@@ -352,6 +487,14 @@ public class WakeWordService extends Service
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
+            return;
+        }
+
+        if (handlePendingComposeConfirmation(message)) {
+            return;
+        }
+
+        if (handleComposeRequest(message)) {
             return;
         }
 
