@@ -77,6 +77,7 @@ public class AlmaAlarmService extends Service {
                 ? "Alejandro, sonó tu alarma."
                 : "Alejandro, te recuerdo: " + reminderText + ".";
 
+        android.content.SharedPreferences alarmPrefs=getSharedPreferences("alma_alarm_log", MODE_PRIVATE); String alarmHistory=alarmPrefs.getString("spoken_history", ""); alarmPrefs.edit().putString("spoken_history", alarmHistory.isEmpty() ? spokenText : alarmHistory + "\n" + spokenText).putBoolean("spoken_history_unread", true).commit();
         speakWithAlmaVoice(spokenText, startId);
 
         return START_NOT_STICKY;

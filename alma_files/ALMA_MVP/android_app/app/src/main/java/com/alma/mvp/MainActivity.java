@@ -144,6 +144,7 @@ cameraButton.setOnClickListener(v -> openCamera());
     @Override
 protected void onResume() {
     super.onResume();
+    android.content.SharedPreferences p=getSharedPreferences("alma_alarm_log",MODE_PRIVATE); if(p.getBoolean("last_spoken_unread",false)){String s=p.getString("last_spoken_text",""); if(s!=null&&!s.trim().isEmpty()) append("ALMA [última alarma]: "+s); p.edit().putBoolean("last_spoken_unread",false).apply();}
 
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
         startHandsFreeService();
