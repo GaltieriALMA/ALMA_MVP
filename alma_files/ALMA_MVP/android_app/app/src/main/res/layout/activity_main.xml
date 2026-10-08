@@ -23,6 +23,12 @@
         android:layout_width="match_parent"
         android:layout_height="300dp"
         android:contentDescription="ALMA 3D" />
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/liveVisionPreview"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:visibility="gone" />
     <ScrollView
         android:id="@+id/chatScroll"
         android:layout_width="match_parent"
@@ -55,6 +61,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:text="CÁMARA" />
+<Button
+    android:id="@+id/liveVisionButton"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="MIRAR" />
     <Button
         android:id="@+id/sendButton"
         android:layout_width="match_parent"

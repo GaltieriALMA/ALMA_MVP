@@ -45,6 +45,12 @@ public class MainActivity extends AppCompatActivity {
     private Button sendButton;
     private Button voiceButton;
     private Button cameraButton;
+    private Button liveVisionButton;
+    private androidx.camera.view.PreviewView liveVisionPreview;
+    private androidx.camera.core.ImageCapture liveVisionCapture;
+    private androidx.camera.lifecycle.ProcessCameraProvider liveVisionProvider;
+    private boolean liveVisionActive = false;
+    private static final int VISION_PERMISSION_REQUEST_CODE = 2003;
     private TextToSpeech tts;
     private SecureTokenStore tokenStore;
 
@@ -101,8 +107,11 @@ public class MainActivity extends AppCompatActivity {
         sendButton = findViewById(R.id.sendButton);
         voiceButton = findViewById(R.id.voiceButton);
 cameraButton = findViewById(R.id.cameraButton);
+        liveVisionButton = findViewById(R.id.liveVisionButton);
+        liveVisionPreview = findViewById(R.id.liveVisionPreview);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
 cameraButton.setOnClickListener(v -> openCamera());
+        liveVisionButton.setOnClickListener(v -> toggleLiveVision());
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
                 tts.setLanguage(new Locale("es", "AR"));
@@ -119,6 +128,84 @@ cameraButton.setOnClickListener(v -> openCamera());
             }
         });
     }
+
+    private void toggleLiveVision() {
+        if (liveVisionActive) {
+            stopLiveVision();
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{Manifest.permission.CAMERA},
+                    VISION_PERMISSION_REQUEST_CODE
+            );
+            return;
+        }
+
+        startLiveVision();
+    }
+
+    private void startLiveVision() {
+        com.google.common.util.concurrent.ListenableFuture<
+                androidx.camera.lifecycle.ProcessCameraProvider> future =
+                androidx.camera.lifecycle.ProcessCameraProvider.getInstance(this);
+
+        future.addListener(() -> {
+            try {
+                liveVisionProvider = future.get();
+
+                androidx.camera.core.Preview preview =
+                        new androidx.camera.core.Preview.Builder().build();
+
+                liveVisionCapture =
+                        new androidx.camera.core.ImageCapture.Builder()
+                                .setCaptureMode(
+                                        androidx.camera.core.ImageCapture
+                                                .CAPTURE_MODE_MINIMIZE_LATENCY
+                                )
+                                .build();
+
+                preview.setSurfaceProvider(
+                        liveVisionPreview.getSurfaceProvider()
+                );
+
+                liveVisionProvider.unbindAll();
+                liveVisionProvider.bindToLifecycle(
+                        this,
+                        androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        liveVisionCapture
+                );
+
+                liveVisionActive = true;
+                findViewById(R.id.almaImage)
+                        .setVisibility(android.view.View.GONE);
+                liveVisionPreview.setVisibility(android.view.View.VISIBLE);
+                liveVisionButton.setText("DEJAR DE MIRAR");
+                append("ALMA: Ya estoy mirando. Preguntame qué estoy viendo.");
+
+            } catch (Exception e) {
+                liveVisionActive = false;
+                append("ALMA: No pude iniciar la mirada en vivo.");
+            }
+        }, androidx.core.content.ContextCompat.getMainExecutor(this));
+    }
+
+    private void stopLiveVision() {
+        if (liveVisionProvider != null) {
+            liveVisionProvider.unbindAll();
+        }
+
+        liveVisionCapture = null;
+        liveVisionActive = false;
+        liveVisionPreview.setVisibility(android.view.View.GONE);
+        findViewById(R.id.almaImage)
+                .setVisibility(android.view.View.VISIBLE);
+        liveVisionButton.setText("MIRAR");
+    }
+
  private void openCamera() {
     if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
         requestPermissions(new String[]{Manifest.permission.CAMERA}, 2002);
@@ -408,6 +495,15 @@ protected void onResume() {
                 append("ALMA: Necesito permiso de micrófono para el modo manos libres.");
             }
         }
+
+        if (requestCode == VISION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startLiveVision();
+            } else {
+                append("ALMA: Necesito permiso de cámara para mirar.");
+            }
+        }
     }
 
     private void requestAccessKey() {
@@ -674,6 +770,114 @@ protected void onResume() {
         return true;
     }
 
+    private boolean sendLiveVisionMessage(
+            String message,
+            String token
+    ) {
+        if (!liveVisionActive || liveVisionCapture == null) {
+            return false;
+        }
+
+        waitingForResponse = true;
+        handler.removeCallbacks(conversationTimeoutRunnable);
+
+        if (speechRecognizer != null) {
+            try {
+                speechRecognizer.cancel();
+            } catch (Exception ignored) {
+            }
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+        sendButton.setEnabled(false);
+
+        File frame = new File(
+                getCacheDir(),
+                "alma_live_" + System.currentTimeMillis() + ".jpg"
+        );
+
+        androidx.camera.core.ImageCapture.OutputFileOptions options =
+                new androidx.camera.core.ImageCapture.OutputFileOptions
+                        .Builder(frame)
+                        .build();
+
+        liveVisionCapture.takePicture(
+                options,
+                androidx.core.content.ContextCompat.getMainExecutor(this),
+                new androidx.camera.core.ImageCapture.OnImageSavedCallback() {
+                    @Override
+                    public void onImageSaved(
+                            androidx.camera.core.ImageCapture.OutputFileResults result
+                    ) {
+                        new Thread(() -> {
+                            try {
+                                ByteArrayOutputStream out =
+                                        new ByteArrayOutputStream();
+
+                                try (InputStream in =
+                                             new java.io.FileInputStream(frame)) {
+                                    byte[] buffer = new byte[8192];
+                                    int read;
+
+                                    while ((read = in.read(buffer)) != -1) {
+                                        out.write(buffer, 0, read);
+                                    }
+                                }
+
+                                String imageBase64 =
+                                        Base64.encodeToString(
+                                                out.toByteArray(),
+                                                Base64.NO_WRAP
+                                        );
+
+                                String reply = api.chatWithImage(
+                                        userId,
+                                        sessionId,
+                                        message,
+                                        imageBase64,
+                                        "image/jpeg",
+                                        token
+                                );
+
+                                byte[] audio = api.tts(reply, token);
+
+                                runOnUiThread(() -> {
+                                    waitingForResponse = false;
+                                    sendButton.setEnabled(true);
+                                    append("ALMA: " + reply);
+                                    playAudio(audio);
+                                });
+
+                            } catch (Exception e) {
+                                runOnUiThread(() -> {
+                                    waitingForResponse = false;
+                                    sendButton.setEnabled(true);
+                                    append("ALMA: No pude interpretar lo que estoy viendo.");
+                                    resumeHandsFreeAfterResponse();
+                                });
+                            } finally {
+                                frame.delete();
+                            }
+                        }, "ALMA-Live-Vision").start();
+                    }
+
+                    @Override
+                    public void onError(
+                            androidx.camera.core.ImageCaptureException exception
+                    ) {
+                        frame.delete();
+                        waitingForResponse = false;
+                        sendButton.setEnabled(true);
+                        append("ALMA: No pude mirar en este momento.");
+                        resumeHandsFreeAfterResponse();
+                    }
+                }
+        );
+
+        return true;
+    }
+
     private void sendMessage() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
@@ -697,6 +901,11 @@ protected void onResume() {
         }
 
         if (handleLocalAlarmCommand(message, token)) {
+            return;
+        }
+
+        if (!message.startsWith("__IMAGE__:")
+                && sendLiveVisionMessage(message, token)) {
             return;
         }
 
@@ -860,6 +1069,10 @@ protected void onResume() {
             } catch (Exception ignored) {
             }
             currentPlayer = null;
+        }
+
+        if (liveVisionProvider != null) {
+            liveVisionProvider.unbindAll();
         }
 
         if (tts != null) {
