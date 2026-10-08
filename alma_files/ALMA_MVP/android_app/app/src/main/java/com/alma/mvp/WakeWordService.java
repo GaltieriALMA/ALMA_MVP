@@ -179,6 +179,40 @@ public class WakeWordService extends Service
     }
 
 
+    private boolean handleAppLaunchCommand(String message) {
+        AppLaunchCommand.Target target = AppLaunchCommand.parse(message);
+
+        if (target == null) {
+            return false;
+        }
+
+        for (String packageName : target.packages) {
+            Intent launch =
+                    getPackageManager().getLaunchIntentForPackage(packageName);
+
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                updateNotification("Abriendo " + target.label);
+
+                try {
+                    startActivity(launch);
+                    speaking = false;
+                    stopSelf();
+                } catch (Exception e) {
+                    speaking = false;
+                    resetToWakeMode();
+                }
+
+                return true;
+            }
+        }
+
+        updateNotification(target.label + " no está instalado");
+        speaking = false;
+        resetToWakeMode();
+        return true;
+    }
+
     private boolean handleVideoCommand(String message) {
         String normalized = normalize(message);
 
@@ -265,6 +299,10 @@ public class WakeWordService extends Service
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
+            return;
+        }
+
+        if (handleAppLaunchCommand(message)) {
             return;
         }
 

@@ -878,10 +878,42 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleLocalAppLaunchCommand(String message) {
+        AppLaunchCommand.Target target = AppLaunchCommand.parse(message);
+
+        if (target == null) {
+            return false;
+        }
+
+        for (String packageName : target.packages) {
+            Intent launch =
+                    getPackageManager().getLaunchIntentForPackage(packageName);
+
+            if (launch != null) {
+                append("Vos: " + message);
+                messageInput.setText("");
+                append("ALMA: Abriendo " + target.label + ".");
+
+                stopService(new Intent(this, WakeWordService.class));
+                startActivity(launch);
+                return true;
+            }
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+        append("ALMA: No encontré " + target.label + " instalado.");
+        return true;
+    }
+
     private void sendMessage() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
             startWakeWordListening();
+            return;
+        }
+
+        if (handleLocalAppLaunchCommand(message)) {
             return;
         }
 
