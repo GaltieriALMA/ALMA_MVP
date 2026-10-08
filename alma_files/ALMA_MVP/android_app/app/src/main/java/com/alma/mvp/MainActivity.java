@@ -48,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private Button fileButton;
     private Button shareButton;
     private Button meetingModeButton;
+    private Button permissionsButton;
     private String lastAlmaReply = "";
     private Button liveVisionButton;
     private androidx.camera.view.PreviewView liveVisionPreview;
@@ -74,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int VOICE_REQUEST_CODE = 1001;
     private static final int FILE_REQUEST_CODE = 3002;
     private static final int AUDIO_PERMISSION_REQUEST_CODE = 2001;
+    private static final int PERMISSIONS_REQUEST_CODE = 4001;
     private static final long CONVERSATION_SILENCE_MS = 15000L;
 
     private final Runnable conversationTimeoutRunnable = () -> {
@@ -115,6 +117,7 @@ cameraButton = findViewById(R.id.cameraButton);
         fileButton = findViewById(R.id.fileButton);
         shareButton = findViewById(R.id.shareButton);
         meetingModeButton = findViewById(R.id.meetingModeButton);
+        permissionsButton = findViewById(R.id.permissionsButton);
         liveVisionButton = findViewById(R.id.liveVisionButton);
         liveVisionPreview = findViewById(R.id.liveVisionPreview);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
@@ -122,6 +125,7 @@ cameraButton.setOnClickListener(v -> openCamera());
         fileButton.setOnClickListener(v -> openFilePicker());
         shareButton.setOnClickListener(v -> shareLastAlmaReply());
         meetingModeButton.setOnClickListener(v -> toggleMeetingMode());
+        permissionsButton.setOnClickListener(v -> requestAlmaPermissions());
         refreshMeetingModeButton();
         liveVisionButton.setOnClickListener(v -> toggleLiveVision());
         tts = new TextToSpeech(this, status -> {
@@ -139,6 +143,88 @@ cameraButton.setOnClickListener(v -> openCamera());
                 sendMessage();
             }
         });
+    }
+
+    private void requestAlmaPermissions() {
+        ArrayList<String> missing = new ArrayList<>();
+
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.RECORD_AUDIO);
+        }
+
+        if (checkSelfPermission(Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.CAMERA);
+        }
+
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+
+        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.READ_CONTACTS);
+        }
+
+        if (!missing.isEmpty()) {
+            requestPermissions(
+                    missing.toArray(new String[0]),
+                    PERMISSIONS_REQUEST_CODE
+            );
+            return;
+        }
+
+        requestExactAlarmPermissionIfNeeded();
+    }
+
+    private void requestExactAlarmPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            android.app.AlarmManager alarmManager =
+                    (android.app.AlarmManager)
+                            getSystemService(ALARM_SERVICE);
+
+            if (alarmManager != null
+                    && !alarmManager.canScheduleExactAlarms()) {
+
+                try {
+                    Intent intent = new Intent(
+                            android.provider.Settings
+                                    .ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                    );
+
+                    intent.setData(
+                            Uri.parse(
+                                    "package:" + getPackageName()
+                            )
+                    );
+
+                    startActivity(intent);
+                    append(
+                            "ALMA: Falta habilitar alarmas exactas. Android abrió la autorización."
+                    );
+                    return;
+
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        append(
+                "ALMA: Los permisos principales están habilitados."
+        );
     }
 
     private boolean isMeetingMode() {
@@ -700,6 +786,30 @@ protected void onResume() {
             int[] grantResults
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == PERMISSIONS_REQUEST_CODE) {
+            int granted = 0;
+
+            for (int result : grantResults) {
+                if (result == PackageManager.PERMISSION_GRANTED) {
+                    granted++;
+                }
+            }
+
+            if (grantResults.length > 0
+                    && granted == grantResults.length) {
+                append(
+                        "ALMA: Permisos principales habilitados."
+                );
+            } else {
+                append(
+                        "ALMA: Algunos permisos quedaron sin habilitar. Podés volver a tocar PERMISOS cuando quieras."
+                );
+            }
+
+            requestExactAlarmPermissionIfNeeded();
+            return;
+        }
 
         if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0
