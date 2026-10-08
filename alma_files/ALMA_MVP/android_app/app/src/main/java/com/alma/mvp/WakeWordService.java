@@ -48,6 +48,7 @@ public class WakeWordService extends Service
     private boolean conversationActive = false;
     private boolean destroyed = false;
     private ComposeCommand.Draft pendingComposeDraft = null;
+    private CalendarCommand.Draft pendingCalendarDraft = null;
 
     private volatile byte[] wakeAckAudio;
     private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
@@ -344,6 +345,118 @@ public class WakeWordService extends Service
         }
     }
 
+    private boolean handlePendingCalendarConfirmation(String message) {
+        if (pendingCalendarDraft == null) {
+            return false;
+        }
+
+        String n = normalize(message);
+
+        boolean confirmed =
+                n.equals("si")
+                || n.equals("si confirma")
+                || n.equals("confirmo")
+                || n.equals("confirmalo")
+                || n.equals("agenda")
+                || n.equals("agendalo");
+
+        boolean cancelled =
+                n.equals("no")
+                || n.equals("cancela")
+                || n.equals("cancelalo")
+                || n.equals("espera")
+                || n.equals("dejalo");
+
+        if (cancelled) {
+            pendingCalendarDraft = null;
+
+            speakAlmaText(
+                    "Cancelado. No agendé nada.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
+
+        if (!confirmed) {
+            speakAlmaText(
+                    "No te entendí. Decí sí, confirmá, o cancelá.",
+                    this::resumeConversationListening
+            );
+
+            return true;
+        }
+
+        CalendarCommand.Draft draft = pendingCalendarDraft;
+        pendingCalendarDraft = null;
+
+        speakAlmaText(
+                "Confirmado. Abro el evento preparado.",
+                () -> openCalendarDraft(draft)
+        );
+
+        return true;
+    }
+
+    private boolean handleCalendarRequest(String message) {
+        CalendarCommand.Draft draft =
+                CalendarCommand.parse(message);
+
+        if (draft == null) {
+            return false;
+        }
+
+        pendingCalendarDraft = draft;
+
+        String when = new java.text.SimpleDateFormat(
+                "EEEE d 'de' MMMM 'a las' HH:mm",
+                new Locale("es", "AR")
+        ).format(new java.util.Date(draft.startMillis));
+
+        speakAlmaText(
+                "Preparé " + draft.title
+                        + ", " + when
+                        + ". ¿Confirmás? Decí sí, confirmá, o cancelá.",
+                this::resumeConversationListening
+        );
+
+        return true;
+    }
+
+    private void openCalendarDraft(CalendarCommand.Draft draft) {
+        if (draft == null) {
+            resetToWakeMode();
+            return;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_INSERT);
+        intent.setData(
+                android.provider.CalendarContract.Events.CONTENT_URI
+        );
+        intent.putExtra(
+                android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME,
+                draft.startMillis
+        );
+        intent.putExtra(
+                android.provider.CalendarContract.EXTRA_EVENT_END_TIME,
+                draft.endMillis
+        );
+        intent.putExtra(
+                android.provider.CalendarContract.Events.TITLE,
+                draft.title
+        );
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        try {
+            startActivity(intent);
+            speaking = false;
+            stopSelf();
+        } catch (Exception e) {
+            speaking = false;
+            resetToWakeMode();
+        }
+    }
+
     private boolean handleNavigationCommand(String message) {
         String destination =
                 NavigationCommand.parseDestination(message);
@@ -528,7 +641,15 @@ public class WakeWordService extends Service
             return;
         }
 
+        if (handlePendingCalendarConfirmation(message)) {
+            return;
+        }
+
         if (handleComposeRequest(message)) {
+            return;
+        }
+
+        if (handleCalendarRequest(message)) {
             return;
         }
 

@@ -1092,6 +1092,51 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleCalendarCommand(String message) {
+        CalendarCommand.Draft draft =
+                CalendarCommand.parse(message);
+
+        if (draft == null) {
+            return false;
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+
+        Intent intent = new Intent(Intent.ACTION_INSERT);
+        intent.setData(
+                android.provider.CalendarContract.Events.CONTENT_URI
+        );
+        intent.putExtra(
+                android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME,
+                draft.startMillis
+        );
+        intent.putExtra(
+                android.provider.CalendarContract.EXTRA_EVENT_END_TIME,
+                draft.endMillis
+        );
+        intent.putExtra(
+                android.provider.CalendarContract.Events.TITLE,
+                draft.title
+        );
+
+        append(
+                "ALMA: Preparé el evento "
+                        + draft.title
+                        + ". Revisalo y guardalo en el calendario."
+        );
+
+        stopService(new Intent(this, WakeWordService.class));
+
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            append("ALMA: No encontré una aplicación de calendario.");
+        }
+
+        return true;
+    }
+
     private boolean handleNavigationCommand(String message) {
         String destination =
                 NavigationCommand.parseDestination(message);
@@ -1163,6 +1208,10 @@ protected void onResume() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
             startWakeWordListening();
+            return;
+        }
+
+        if (handleCalendarCommand(message)) {
             return;
         }
 
