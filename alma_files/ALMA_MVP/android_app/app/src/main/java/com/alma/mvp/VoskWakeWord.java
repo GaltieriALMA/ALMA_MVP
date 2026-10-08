@@ -66,7 +66,7 @@ public final class VoskWakeWord {
     private double conversationEnergy = 0.0;
     private long conversationSamples = 0L;
     private static final double MIN_CONVERSATION_RMS = 1400.0;
-private static final double MIN_WAKE_CONFIDENCE = 0.80;
+    private static final double MIN_WAKE_CONFIDENCE = 0.55;
     private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
 private volatile String pendingWakePartial = "";
 
@@ -448,7 +448,7 @@ private double wakeConfidenceFromJson(String hypothesis) {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text)) {
+            if ("alma".equalsIgnoreCase(text.trim()) && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
               handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";  
                 wakeDetected(text);
