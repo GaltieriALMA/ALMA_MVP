@@ -46,6 +46,8 @@ public class MainActivity extends AppCompatActivity {
     private Button voiceButton;
     private Button cameraButton;
     private Button fileButton;
+    private Button shareButton;
+    private String lastAlmaReply = "";
     private Button liveVisionButton;
     private androidx.camera.view.PreviewView liveVisionPreview;
     private androidx.camera.core.ImageCapture liveVisionCapture;
@@ -110,11 +112,13 @@ public class MainActivity extends AppCompatActivity {
         voiceButton = findViewById(R.id.voiceButton);
 cameraButton = findViewById(R.id.cameraButton);
         fileButton = findViewById(R.id.fileButton);
+        shareButton = findViewById(R.id.shareButton);
         liveVisionButton = findViewById(R.id.liveVisionButton);
         liveVisionPreview = findViewById(R.id.liveVisionPreview);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
 cameraButton.setOnClickListener(v -> openCamera());
         fileButton.setOnClickListener(v -> openFilePicker());
+        shareButton.setOnClickListener(v -> shareLastAlmaReply());
         liveVisionButton.setOnClickListener(v -> toggleLiveVision());
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -208,6 +212,24 @@ cameraButton.setOnClickListener(v -> openCamera());
         findViewById(R.id.almaImage)
                 .setVisibility(android.view.View.VISIBLE);
         liveVisionButton.setText("MIRAR");
+    }
+
+    private void shareLastAlmaReply() {
+        if (lastAlmaReply == null || lastAlmaReply.trim().isEmpty()) {
+            append("ALMA: Todavía no hay contenido para compartir.");
+            return;
+        }
+
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_TEXT, lastAlmaReply);
+
+        startActivity(
+                Intent.createChooser(
+                        share,
+                        "Compartir contenido de ALMA"
+                )
+        );
     }
 
     private void openFilePicker() {
@@ -1210,6 +1232,10 @@ protected void onResume() {
     }
 
     private void append(String line) {
+        if (line != null && line.startsWith("ALMA: ")) {
+            lastAlmaReply = line.substring(6).trim();
+        }
+
         chatText.append("\n\n" + line);
 
         String history = chatText.getText().toString();
