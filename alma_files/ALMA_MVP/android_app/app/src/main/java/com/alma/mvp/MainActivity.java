@@ -45,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
     private Button sendButton;
     private Button voiceButton;
     private Button cameraButton;
+    private Button fileButton;
     private Button liveVisionButton;
     private androidx.camera.view.PreviewView liveVisionPreview;
     private androidx.camera.core.ImageCapture liveVisionCapture;
@@ -68,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private static final int VOICE_REQUEST_CODE = 1001;
+    private static final int FILE_REQUEST_CODE = 3002;
     private static final int AUDIO_PERMISSION_REQUEST_CODE = 2001;
     private static final long CONVERSATION_SILENCE_MS = 15000L;
 
@@ -107,10 +109,12 @@ public class MainActivity extends AppCompatActivity {
         sendButton = findViewById(R.id.sendButton);
         voiceButton = findViewById(R.id.voiceButton);
 cameraButton = findViewById(R.id.cameraButton);
+        fileButton = findViewById(R.id.fileButton);
         liveVisionButton = findViewById(R.id.liveVisionButton);
         liveVisionPreview = findViewById(R.id.liveVisionPreview);
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
 cameraButton.setOnClickListener(v -> openCamera());
+        fileButton.setOnClickListener(v -> openFilePicker());
         liveVisionButton.setOnClickListener(v -> toggleLiveVision());
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -204,6 +208,133 @@ cameraButton.setOnClickListener(v -> openCamera());
         findViewById(R.id.almaImage)
                 .setVisibility(android.view.View.VISIBLE);
         liveVisionButton.setText("MIRAR");
+    }
+
+    private void openFilePicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                new String[]{
+                        "application/pdf",
+                        "text/plain",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                }
+        );
+        startActivityForResult(intent, FILE_REQUEST_CODE);
+    }
+
+    private void sendFileForAnalysis(Uri uri) {
+        String token = tokenStore.load();
+
+        if (token == null) {
+            requestAccessKey();
+            return;
+        }
+
+        waitingForResponse = true;
+        sendButton.setEnabled(false);
+        append("Vos: [Archivo]");
+
+        new Thread(() -> {
+            try {
+                String fileName = "archivo";
+                String mimeType = getContentResolver().getType(uri);
+
+                if (mimeType == null || mimeType.trim().isEmpty()) {
+                    mimeType = "application/octet-stream";
+                }
+
+                try (android.database.Cursor cursor =
+                             getContentResolver().query(
+                                     uri,
+                                     null,
+                                     null,
+                                     null,
+                                     null
+                             )) {
+
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int index = cursor.getColumnIndex(
+                                android.provider.OpenableColumns.DISPLAY_NAME
+                        );
+
+                        if (index >= 0) {
+                            String found = cursor.getString(index);
+                            if (found != null && !found.trim().isEmpty()) {
+                                fileName = found;
+                            }
+                        }
+                    }
+                }
+
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+                try (InputStream in =
+                             getContentResolver().openInputStream(uri)) {
+
+                    if (in == null) {
+                        throw new java.io.IOException("No pude abrir el archivo");
+                    }
+
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    int total = 0;
+                    final int MAX_FILE_BYTES = 15 * 1024 * 1024;
+
+                    while ((read = in.read(buffer)) != -1) {
+                        total += read;
+
+                        if (total > MAX_FILE_BYTES) {
+                            throw new java.io.IOException(
+                                    "El archivo supera 15 MB"
+                            );
+                        }
+
+                        out.write(buffer, 0, read);
+                    }
+                }
+
+                String encoded =
+                        "data:" + mimeType + ";base64,"
+                                + Base64.encodeToString(
+                                        out.toByteArray(),
+                                        Base64.NO_WRAP
+                                );
+
+                String reply = api.chatWithFile(
+                        userId,
+                        sessionId,
+                        "Analizá este archivo y explicame de forma clara los puntos más importantes.",
+                        encoded,
+                        fileName,
+                        mimeType,
+                        token
+                );
+
+                byte[] audio = api.tts(reply, token);
+
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: " + reply);
+                    playAudio(audio);
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append(
+                            "ALMA: No pude analizar ese archivo: "
+                                    + String.valueOf(e.getMessage())
+                    );
+                    resumeHandsFreeAfterResponse();
+                });
+            }
+        }, "ALMA-File").start();
     }
 
  private void openCamera() {
@@ -448,6 +579,14 @@ protected void onResume() {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == FILE_REQUEST_CODE
+                && resultCode == RESULT_OK
+                && data != null
+                && data.getData() != null) {
+            sendFileForAnalysis(data.getData());
+            return;
+        }
 
         if (requestCode == VOICE_REQUEST_CODE) {
             manualVoiceActive = false;
