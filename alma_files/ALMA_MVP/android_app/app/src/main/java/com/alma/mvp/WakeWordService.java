@@ -179,6 +179,59 @@ public class WakeWordService extends Service
     }
 
 
+    private boolean handleNavigationCommand(String message) {
+        String destination =
+                NavigationCommand.parseDestination(message);
+
+        if (destination == null) {
+            return false;
+        }
+
+        String encoded =
+                android.net.Uri.encode(destination);
+
+        Intent maps = new Intent(
+                Intent.ACTION_VIEW,
+                android.net.Uri.parse(
+                        "google.navigation:q=" + encoded
+                )
+        );
+
+        maps.setPackage(
+                "com.google.android.apps.maps"
+        );
+        maps.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        try {
+            startActivity(maps);
+            speaking = false;
+            stopSelf();
+        } catch (Exception e) {
+            try {
+                Intent fallback = new Intent(
+                        Intent.ACTION_VIEW,
+                        android.net.Uri.parse(
+                                "geo:0,0?q=" + encoded
+                        )
+                );
+
+                fallback.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+                );
+
+                startActivity(fallback);
+                speaking = false;
+                stopSelf();
+
+            } catch (Exception ignored) {
+                speaking = false;
+                resetToWakeMode();
+            }
+        }
+
+        return true;
+    }
+
     private boolean handleAppLaunchCommand(String message) {
         AppLaunchCommand.Target target = AppLaunchCommand.parse(message);
 
@@ -299,6 +352,10 @@ public class WakeWordService extends Service
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
+            return;
+        }
+
+        if (handleNavigationCommand(message)) {
             return;
         }
 

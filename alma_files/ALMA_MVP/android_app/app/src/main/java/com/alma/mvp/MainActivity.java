@@ -1039,6 +1039,45 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleNavigationCommand(String message) {
+        String destination =
+                NavigationCommand.parseDestination(message);
+
+        if (destination == null) {
+            return false;
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+        append("ALMA: Abriendo navegación a " + destination + ".");
+
+        String encoded =
+                android.net.Uri.encode(destination);
+
+        Intent maps = new Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("google.navigation:q=" + encoded)
+        );
+
+        maps.setPackage("com.google.android.apps.maps");
+
+        stopService(
+                new Intent(this, WakeWordService.class)
+        );
+
+        try {
+            startActivity(maps);
+        } catch (Exception e) {
+            Intent fallback = new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("geo:0,0?q=" + encoded)
+            );
+            startActivity(fallback);
+        }
+
+        return true;
+    }
+
     private boolean handleLocalAppLaunchCommand(String message) {
         AppLaunchCommand.Target target = AppLaunchCommand.parse(message);
 
@@ -1071,6 +1110,10 @@ protected void onResume() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
             startWakeWordListening();
+            return;
+        }
+
+        if (handleNavigationCommand(message)) {
             return;
         }
 
