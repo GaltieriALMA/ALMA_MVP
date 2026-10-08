@@ -49,6 +49,8 @@ public class WakeWordService extends Service
     private boolean destroyed = false;
     private ComposeCommand.Draft pendingComposeDraft = null;
     private CalendarCommand.Draft pendingCalendarDraft = null;
+    private ContactCallCommand.Resolution pendingCall = null;
+    private String pendingCallMethod = null;
 
     private volatile byte[] wakeAckAudio;
     private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
@@ -339,6 +341,241 @@ public class WakeWordService extends Service
                 stopSelf();
 
             } catch (Exception ignored) {
+                speaking = false;
+                resetToWakeMode();
+            }
+        }
+    }
+
+    private void clearPendingCall() {
+        pendingCall = null;
+        pendingCallMethod = null;
+    }
+
+    private boolean handlePendingCallFlow(String message) {
+        if (pendingCall == null) return false;
+
+        String n = normalize(message);
+
+        boolean cancelled =
+                n.equals("no")
+                || n.equals("cancela")
+                || n.equals("cancelalo")
+                || n.equals("espera")
+                || n.equals("dejalo");
+
+        if (cancelled) {
+            clearPendingCall();
+
+            speakAlmaText(
+                    "Cancelado. No hice la llamada.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
+
+        if (pendingCallMethod == null) {
+            String method =
+                    ContactCallCommand.parseMethod(message);
+
+            if (method == null) {
+                speakAlmaText(
+                        "Decime WhatsApp o línea.",
+                        this::resumeConversationListening
+                );
+                return true;
+            }
+
+            pendingCallMethod = method;
+            askCallConfirmation();
+            return true;
+        }
+
+        boolean confirmed =
+                n.equals("si")
+                || n.equals("si llama")
+                || n.equals("si llamalo")
+                || n.equals("llama")
+                || n.equals("llamalo")
+                || n.equals("confirmo")
+                || n.equals("confirmado");
+
+        if (!confirmed) {
+            speakAlmaText(
+                    "No te entendí. Decí sí, llamá, o cancelá.",
+                    this::resumeConversationListening
+            );
+            return true;
+        }
+
+        ContactCallCommand.Resolution call = pendingCall;
+        String method = pendingCallMethod;
+
+        clearPendingCall();
+
+        if (ContactCallCommand.METHOD_LINE.equals(method)) {
+            if (checkSelfPermission(
+                    android.Manifest.permission.CALL_PHONE
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                speakAlmaText(
+                        "Falta el permiso de llamadas. Abrí ALMA y tocá PERMISOS.",
+                        this::resetToWakeMode
+                );
+                return true;
+            }
+
+            speakAlmaText(
+                    "Confirmado. Llamando a "
+                            + call.displayName
+                            + " por línea.",
+                    () -> openLineCall(call)
+            );
+
+        } else {
+            speakAlmaText(
+                    "Confirmado. Abro WhatsApp en "
+                            + call.displayName
+                            + ".",
+                    () -> openWhatsAppContact(call)
+            );
+        }
+
+        return true;
+    }
+
+    private boolean handleCallRequest(String message) {
+        ContactCallCommand.Draft draft =
+                ContactCallCommand.parse(message);
+
+        if (draft == null) return false;
+
+        if (checkSelfPermission(
+                android.Manifest.permission.READ_CONTACTS
+        ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+            speakAlmaText(
+                    "Necesito permiso de contactos. Abrí ALMA y tocá PERMISOS.",
+                    this::resetToWakeMode
+            );
+            return true;
+        }
+
+        ContactCallCommand.Resolution resolution =
+                ContactCallCommand.resolve(
+                        this,
+                        draft.requestedName
+                );
+
+        if (resolution.ambiguous) {
+            speakAlmaText(
+                    "Encontré más de un contacto o número parecido. Decime el nombre completo.",
+                    this::resumeConversationListening
+            );
+            return true;
+        }
+
+        if (!resolution.found()) {
+            speakAlmaText(
+                    "No encontré ese contacto.",
+                    this::resumeConversationListening
+            );
+            return true;
+        }
+
+        pendingCall = resolution;
+        pendingCallMethod = draft.preferredMethod;
+
+        if (pendingCallMethod == null) {
+            speakAlmaText(
+                    "Encontré a "
+                            + resolution.displayName
+                            + ". ¿Querés llamar por WhatsApp o por línea?",
+                    this::resumeConversationListening
+            );
+        } else {
+            askCallConfirmation();
+        }
+
+        return true;
+    }
+
+    private void askCallConfirmation() {
+        if (pendingCall == null || pendingCallMethod == null) {
+            clearPendingCall();
+            resetToWakeMode();
+            return;
+        }
+
+        String label =
+                ContactCallCommand.METHOD_WHATSAPP.equals(
+                        pendingCallMethod
+                )
+                        ? "WhatsApp"
+                        : "línea";
+
+        speakAlmaText(
+                pendingCall.displayName
+                        + " por "
+                        + label
+                        + ". ¿Confirmás? Decí sí, llamá, o cancelá.",
+                this::resumeConversationListening
+        );
+    }
+
+    private void openLineCall(
+            ContactCallCommand.Resolution call
+    ) {
+        Intent intent = new Intent(
+                Intent.ACTION_CALL,
+                android.net.Uri.parse(
+                        "tel:" + android.net.Uri.encode(
+                                call.phoneNumber
+                        )
+                )
+        );
+
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        try {
+            startActivity(intent);
+            speaking = false;
+            stopSelf();
+        } catch (Exception e) {
+            speaking = false;
+            resetToWakeMode();
+        }
+    }
+
+    private void openWhatsAppContact(
+            ContactCallCommand.Resolution call
+    ) {
+        Intent intent = new Intent(
+                Intent.ACTION_SENDTO,
+                android.net.Uri.parse(
+                        "smsto:" + android.net.Uri.encode(
+                                call.phoneNumber
+                        )
+                )
+        );
+
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setPackage("com.whatsapp");
+
+        try {
+            startActivity(intent);
+            speaking = false;
+            stopSelf();
+
+        } catch (Exception first) {
+            intent.setPackage("com.whatsapp.w4b");
+
+            try {
+                startActivity(intent);
+                speaking = false;
+                stopSelf();
+
+            } catch (Exception second) {
                 speaking = false;
                 resetToWakeMode();
             }
@@ -637,6 +874,10 @@ public class WakeWordService extends Service
             return;
         }
 
+        if (handlePendingCallFlow(message)) {
+            return;
+        }
+
         if (handlePendingComposeConfirmation(message)) {
             return;
         }
@@ -650,6 +891,10 @@ public class WakeWordService extends Service
         }
 
         if (handleCalendarRequest(message)) {
+            return;
+        }
+
+        if (handleCallRequest(message)) {
             return;
         }
 

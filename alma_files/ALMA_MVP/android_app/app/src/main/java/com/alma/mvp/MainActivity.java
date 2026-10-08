@@ -179,6 +179,11 @@ cameraButton.setOnClickListener(v -> openCamera());
             missing.add(Manifest.permission.READ_CONTACTS);
         }
 
+        if (checkSelfPermission(Manifest.permission.CALL_PHONE)
+                != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.CALL_PHONE);
+        }
+
         if (!missing.isEmpty()) {
             requestPermissions(
                     missing.toArray(new String[0]),
@@ -1202,6 +1207,180 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleCallCommand(String message) {
+        ContactCallCommand.Draft draft =
+                ContactCallCommand.parse(message);
+
+        if (draft == null) return false;
+
+        append("Vos: " + message);
+        messageInput.setText("");
+
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                != PackageManager.PERMISSION_GRANTED) {
+            append("ALMA: Necesito permiso de contactos. Tocá PERMISOS.");
+            requestAlmaPermissions();
+            return true;
+        }
+
+        ContactCallCommand.Resolution resolution =
+                ContactCallCommand.resolve(
+                        this,
+                        draft.requestedName
+                );
+
+        if (resolution.ambiguous) {
+            append(
+                    "ALMA: Encontré más de un contacto o número parecido. Decime el nombre completo."
+            );
+            return true;
+        }
+
+        if (!resolution.found()) {
+            append("ALMA: No encontré ese contacto.");
+            return true;
+        }
+
+        if (draft.preferredMethod != null) {
+            showCallConfirmation(
+                    resolution,
+                    draft.preferredMethod
+            );
+            return true;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("¿Cómo querés llamar?")
+                .setMessage(resolution.displayName)
+                .setItems(
+                        new String[]{"WhatsApp", "Línea telefónica"},
+                        (dialog, which) -> {
+                            String method =
+                                    which == 0
+                                            ? ContactCallCommand.METHOD_WHATSAPP
+                                            : ContactCallCommand.METHOD_LINE;
+
+                            showCallConfirmation(
+                                    resolution,
+                                    method
+                            );
+                        }
+                )
+                .setNegativeButton("Cancelar", null)
+                .show();
+
+        return true;
+    }
+
+    private void showCallConfirmation(
+            ContactCallCommand.Resolution resolution,
+            String method
+    ) {
+        String label =
+                ContactCallCommand.METHOD_WHATSAPP.equals(method)
+                        ? "WhatsApp"
+                        : "línea";
+
+        new AlertDialog.Builder(this)
+                .setTitle("Confirmar llamada")
+                .setMessage(
+                        "¿Llamar a "
+                                + resolution.displayName
+                                + " por "
+                                + label
+                                + "?"
+                )
+                .setPositiveButton(
+                        "Sí, confirmar",
+                        (dialog, which) ->
+                                performConfirmedCall(
+                                        resolution,
+                                        method
+                                )
+                )
+                .setNegativeButton(
+                        "Cancelar",
+                        (dialog, which) ->
+                                append(
+                                        "ALMA: Cancelado. No hice la llamada."
+                                )
+                )
+                .show();
+    }
+
+    private void performConfirmedCall(
+            ContactCallCommand.Resolution resolution,
+            String method
+    ) {
+        stopService(new Intent(this, WakeWordService.class));
+
+        if (ContactCallCommand.METHOD_WHATSAPP.equals(method)) {
+            openWhatsAppContact(resolution);
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.CALL_PHONE)
+                != PackageManager.PERMISSION_GRANTED) {
+            append(
+                    "ALMA: Falta permiso para llamadas. Tocá PERMISOS."
+            );
+            requestAlmaPermissions();
+            return;
+        }
+
+        Intent call = new Intent(
+                Intent.ACTION_CALL,
+                Uri.parse(
+                        "tel:" + Uri.encode(
+                                resolution.phoneNumber
+                        )
+                )
+        );
+
+        try {
+            startActivity(call);
+        } catch (Exception e) {
+            append("ALMA: No pude iniciar la llamada.");
+        }
+    }
+
+    private void openWhatsAppContact(
+            ContactCallCommand.Resolution resolution
+    ) {
+        Intent intent = new Intent(
+                Intent.ACTION_SENDTO,
+                Uri.parse(
+                        "smsto:" + Uri.encode(
+                                resolution.phoneNumber
+                        )
+                )
+        );
+
+        intent.setPackage("com.whatsapp");
+
+        try {
+            startActivity(intent);
+            append(
+                    "ALMA: Abrí WhatsApp en "
+                            + resolution.displayName
+                            + ". Tocá el ícono de llamada para iniciar."
+            );
+        } catch (Exception first) {
+            intent.setPackage("com.whatsapp.w4b");
+
+            try {
+                startActivity(intent);
+                append(
+                        "ALMA: Abrí WhatsApp en "
+                                + resolution.displayName
+                                + ". Tocá el ícono de llamada para iniciar."
+                );
+            } catch (Exception second) {
+                append("ALMA: No encontré WhatsApp instalado.");
+            }
+        }
+    }
+
     private boolean handleCalendarCommand(String message) {
         CalendarCommand.Draft draft =
                 CalendarCommand.parse(message);
@@ -1318,6 +1497,10 @@ protected void onResume() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
             startWakeWordListening();
+            return;
+        }
+
+        if (handleCallCommand(message)) {
             return;
         }
 
