@@ -49,6 +49,8 @@ public class WakeWordService extends Service
     private boolean destroyed = false;
 
     private volatile byte[] wakeAckAudio;
+    private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
+    private long lastWakeAcceptedAt = 0L;
 
     @Override
     public void onCreate() {
