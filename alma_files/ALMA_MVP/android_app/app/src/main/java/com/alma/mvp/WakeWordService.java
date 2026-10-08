@@ -184,7 +184,12 @@ public class WakeWordService extends Service
 
         boolean wantsVideo =
                 normalized.contains("video")
-                || normalized.contains("youtube");
+                || normalized.contains("youtube")
+                || ((normalized.startsWith("pone ")
+                        || normalized.startsWith("poneme ")
+                        || normalized.startsWith("reproduci ")
+                        || normalized.startsWith("reproduce "))
+                    && normalized.contains("altavoz"));
 
         if (!wantsVideo) {
             return false;
@@ -195,6 +200,7 @@ public class WakeWordService extends Service
                 .replaceFirst("^un\\s+", "")
                 .replaceFirst("^video\\s+(de|del)?\\s*", "")
                 .replaceAll("\\b(en\\s+)?youtube\\b", "")
+                .replaceAll("\\b(en\\s+el\\s+|por\\s+el\\s+)?altavoz\\b", "")
                 .replaceAll("\\s+", " ")
                 .trim();
 

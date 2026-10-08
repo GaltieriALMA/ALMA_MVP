@@ -602,6 +602,76 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleLocalYoutubeCommand(String message, String token) {
+        String n = java.text.Normalizer.normalize(
+                message.toLowerCase(Locale.ROOT),
+                java.text.Normalizer.Form.NFD
+        ).replaceAll("\\p{M}", "");
+
+        boolean wantsYoutube =
+                n.contains("youtube")
+                || n.contains("video")
+                || ((n.startsWith("pone ")
+                        || n.startsWith("poneme ")
+                        || n.startsWith("reproduci ")
+                        || n.startsWith("reproduce "))
+                    && n.contains("altavoz"));
+
+        if (!wantsYoutube) return false;
+
+        String query = n
+                .replaceFirst("^(busca|buscame|mostra|mostrame|pone|poneme|reproduci|reproduce)\\s+", "")
+                .replaceFirst("^un\\s+", "")
+                .replaceFirst("^video\\s+(de|del)?\\s*", "")
+                .replaceAll("\\b(en\\s+)?youtube\\b", "")
+                .replaceAll("\\b(en\\s+el\\s+|por\\s+el\\s+)?altavoz\\b", "")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        if (query.isEmpty()) return false;
+
+        waitingForResponse = true;
+        append("Vos: " + message);
+        messageInput.setText("");
+        sendButton.setEnabled(false);
+
+        new Thread(() -> {
+            try {
+                org.json.JSONObject result = api.searchYouTube(query, token);
+                String videoId = result.getString("video_id");
+                String title = result.optString("title", query);
+
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: Reproduciendo en YouTube: " + title);
+
+                    Intent i = new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://www.youtube.com/watch?v=" + videoId)
+                    );
+                    i.setPackage("com.google.android.youtube");
+
+                    try {
+                        startActivity(i);
+                    } catch (Exception e) {
+                        i.setPackage(null);
+                        startActivity(i);
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    waitingForResponse = false;
+                    sendButton.setEnabled(true);
+                    append("ALMA: No pude encontrar ese video en YouTube.");
+                    resumeHandsFreeAfterResponse();
+                });
+            }
+        }, "ALMA-YouTube").start();
+
+        return true;
+    }
+
     private void sendMessage() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
@@ -613,6 +683,10 @@ protected void onResume() {
         if (token == null) {
             requestAccessKey();
             startWakeWordListening();
+            return;
+        }
+
+        if (handleLocalYoutubeCommand(message, token)) {
             return;
         }
 
