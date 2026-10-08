@@ -448,7 +448,7 @@ private double wakeConfidenceFromJson(String hypothesis) {
         String text = textFromJson(hypothesis, "text");
 
         if (activeMode == Mode.WAKE) {
-            if (containsWakeWord(text) && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
+            if (text.toLowerCase(Locale.ROOT).matches("^(?:hola\\s+)?alma\\b.*") && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
               handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";  
                 wakeDetected(text);

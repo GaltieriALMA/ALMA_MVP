@@ -247,8 +247,7 @@ public class WakeWordService extends Service
                     }
 
                     speaking = false;
-                    updateNotification("Reproduciendo: " + title);
-                    resetToWakeMode();
+                    stopSelf();
                 });
 
             } catch (Exception e) {
