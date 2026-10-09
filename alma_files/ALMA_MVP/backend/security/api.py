@@ -1,5 +1,3 @@
-import os
-import secrets
 from collections import deque
 from datetime import datetime, timezone
 from threading import Lock
@@ -15,6 +13,7 @@ router = APIRouter(
     tags=["security"],
 )
 
+from backend.security.auth import require_api_key
 from backend.security.sources import router as sources_router
 
 _EVENTS = deque(maxlen=500)
@@ -58,33 +57,6 @@ class SecurityEventRequest(BaseModel):
         le=1.0,
     )
     occurred_at: datetime | None = None
-
-
-def _require_api_key(
-    x_alma_api_key: str | None = Header(
-        default=None,
-        alias="X-ALMA-API-Key",
-    ),
-):
-    expected = os.getenv("ALMA_API_KEY", "").strip()
-
-    if not expected:
-        raise HTTPException(
-            status_code=503,
-            detail="ALMA_API_KEY no configurada.",
-        )
-
-    if (
-        not x_alma_api_key
-        or not secrets.compare_digest(
-            x_alma_api_key,
-            expected,
-        )
-    ):
-        raise HTTPException(
-            status_code=401,
-            detail="No autorizado.",
-        )
 
 
 def _utc_iso(value: datetime | None) -> str:
@@ -137,7 +109,7 @@ def receive_security_event(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     decision = evaluate_event(request)
 
@@ -169,7 +141,7 @@ def recent_security_events(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         items = list(_EVENTS)[:limit]
@@ -187,7 +159,7 @@ def security_status(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         buffered = len(_EVENTS)

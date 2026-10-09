@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.security.api import _require_api_key
+from backend.security.auth import require_api_key
 
 
 router = APIRouter(
@@ -98,7 +98,7 @@ def register_source(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     source_id = str(uuid4())
 
@@ -138,7 +138,7 @@ def list_sources(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         items = list(_SOURCES.values())
@@ -157,7 +157,7 @@ def get_source(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         item = _SOURCES.get(source_id)
@@ -179,7 +179,7 @@ def enable_source(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         item = _SOURCES.get(source_id)
@@ -204,7 +204,7 @@ def disable_source(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         item = _SOURCES.get(source_id)
@@ -229,7 +229,7 @@ def source_capabilities(
         alias="X-ALMA-API-Key",
     ),
 ):
-    _require_api_key(x_alma_api_key)
+    require_api_key(x_alma_api_key)
 
     with _LOCK:
         item = _SOURCES.get(source_id)
