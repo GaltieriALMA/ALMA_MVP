@@ -157,7 +157,11 @@ private final Runnable partialWakeRunnable = () -> {
 
         try {
             if (desiredMode == Mode.WAKE) {
-                recognizer = new Recognizer(model, SAMPLE_RATE);
+                recognizer = new Recognizer(
+                        model,
+                        SAMPLE_RATE,
+                        "[\"alma\", \"hola alma\", \"[unk]\"]"
+                );
             } else if (desiredMode == Mode.INTERRUPT) {
                 recognizer = new Recognizer(
                         model,
