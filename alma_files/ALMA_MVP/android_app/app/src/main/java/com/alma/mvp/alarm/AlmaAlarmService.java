@@ -40,7 +40,7 @@ public class AlmaAlarmService extends Service {
                 new NotificationCompat.Builder(this, CHANNEL_ID)
                         .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                         .setContentTitle("ALMA")
-                        .setContentText("Despertador inteligente activo")
+                        .setContentText("Alarma o recordatorio activo")
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setOngoing(true);
 
@@ -177,12 +177,12 @@ public class AlmaAlarmService extends Service {
             NotificationChannel channel =
                     new NotificationChannel(
                             CHANNEL_ID,
-                            "Despertador ALMA",
+                            "Alarmas y recordatorios ALMA",
                             NotificationManager.IMPORTANCE_HIGH
                     );
 
             channel.setDescription(
-                    "Avisos del despertador inteligente de ALMA"
+                    "Avisos de alarmas y recordatorios de ALMA"
             );
 
             NotificationManager manager =

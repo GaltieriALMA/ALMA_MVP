@@ -1008,12 +1008,23 @@ protected void onResume() {
                 parsed.reminderText
         );
 
-        String reply = String.format(
-                Locale.ROOT,
-                "Listo. Te despierto a las %02d:%02d.",
-                parsed.hour,
-                parsed.minute
-        );
+        String reply;
+
+        if (!parsed.reminderText.isEmpty()) {
+            reply = String.format(
+                    Locale.ROOT,
+                    "Listo. Recordatorio programado para las %02d:%02d.",
+                    parsed.hour,
+                    parsed.minute
+            );
+        } else {
+            reply = String.format(
+                    Locale.ROOT,
+                    "Listo. Te despierto a las %02d:%02d.",
+                    parsed.hour,
+                    parsed.minute
+            );
+        }
 
         if (!exact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             reply += " Android todavía no me dio permiso para alarmas exactas.";

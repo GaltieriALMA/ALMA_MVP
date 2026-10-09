@@ -13,6 +13,8 @@ import android.os.IBinder;
 import android.os.Looper;
 
 import com.alma.mvp.tv.TvDirectBridge;
+import com.alma.mvp.alarm.AlmaAlarmCommand;
+import com.alma.mvp.alarm.AlmaAlarmScheduler;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -1043,6 +1045,51 @@ public class WakeWordService extends Service
         return true;
     }
 
+    private boolean handleAlarmCommand(String message) {
+        AlmaAlarmCommand.Parsed parsed =
+                AlmaAlarmCommand.parse(message);
+
+        if (parsed == null) {
+            return false;
+        }
+
+        boolean exact = AlmaAlarmScheduler.schedule(
+                this,
+                parsed.triggerAtMillis,
+                parsed.reminderText
+        );
+
+        String reply;
+
+        if (!parsed.reminderText.isEmpty()) {
+            reply = String.format(
+                    Locale.ROOT,
+                    "Listo. Recordatorio programado para las %02d:%02d.",
+                    parsed.hour,
+                    parsed.minute
+            );
+        } else {
+            reply = String.format(
+                    Locale.ROOT,
+                    "Listo. Te despierto a las %02d:%02d.",
+                    parsed.hour,
+                    parsed.minute
+            );
+        }
+
+        if (!exact) {
+            reply += " Android todavía no habilitó alarmas exactas.";
+        }
+
+        speakAlmaText(
+                reply,
+                this::resumeConversationListening
+        );
+
+        return true;
+    }
+
+
     private String tvAction(String message) {
         String n = normalize(message);
 
@@ -1256,6 +1303,10 @@ public class WakeWordService extends Service
         }
 
         if (handleCallRequest(message)) {
+            return;
+        }
+
+        if (handleAlarmCommand(message)) {
             return;
         }
 

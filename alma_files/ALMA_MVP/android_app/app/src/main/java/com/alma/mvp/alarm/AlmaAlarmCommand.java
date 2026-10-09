@@ -64,7 +64,12 @@ public final class AlmaAlarmCommand {
                 || text.contains("levantame")
                 || text.contains("despertador");
 
-        if (!alarmIntent) return null;
+        boolean reminderIntent =
+                text.contains("recordame")
+                || text.contains("recordarme")
+                || text.contains("recuerdame");
+
+        if (!alarmIntent && !reminderIntent) return null;
 
         Matcher halfHour = Pattern.compile(
                 "(?:dentro\\s+de|en)\\s+media\\s+hora"
