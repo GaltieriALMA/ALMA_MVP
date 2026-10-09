@@ -1207,6 +1207,165 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleContactMessageCommand(String message) {
+        ContactMessageCommand.Draft draft =
+                ContactMessageCommand.parse(message);
+
+        if (draft == null) return false;
+
+        append("Vos: " + message);
+        messageInput.setText("");
+
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                != PackageManager.PERMISSION_GRANTED) {
+            append("ALMA: Necesito permiso de contactos. Tocá PERMISOS.");
+            requestAlmaPermissions();
+            return true;
+        }
+
+        ContactCallCommand.Resolution contact =
+                ContactCallCommand.resolve(
+                        this,
+                        draft.requestedName
+                );
+
+        if (contact.ambiguous) {
+            append(
+                    "ALMA: Encontré más de un contacto parecido. Decime el nombre completo."
+            );
+            return true;
+        }
+
+        if (!contact.found()) {
+            append("ALMA: No encontré ese contacto.");
+            return true;
+        }
+
+        if (draft.preferredMethod == null) {
+            new AlertDialog.Builder(this)
+                    .setTitle("¿Cómo querés enviarlo?")
+                    .setMessage(
+                            contact.displayName
+                                    + "\n\n"
+                                    + draft.text
+                    )
+                    .setItems(
+                            new String[]{
+                                    "WhatsApp",
+                                    "Mensaje de texto"
+                            },
+                            (dialog, which) ->
+                                    confirmContactMessage(
+                                            contact,
+                                            draft.text,
+                                            which == 0
+                                                    ? ContactMessageCommand.METHOD_WHATSAPP
+                                                    : ContactMessageCommand.METHOD_SMS
+                                    )
+                    )
+                    .setNegativeButton("Cancelar", null)
+                    .show();
+
+            return true;
+        }
+
+        confirmContactMessage(
+                contact,
+                draft.text,
+                draft.preferredMethod
+        );
+
+        return true;
+    }
+
+    private void confirmContactMessage(
+            ContactCallCommand.Resolution contact,
+            String text,
+            String method
+    ) {
+        String label =
+                ContactMessageCommand.METHOD_WHATSAPP.equals(method)
+                        ? "WhatsApp"
+                        : "mensaje de texto";
+
+        new AlertDialog.Builder(this)
+                .setTitle("Confirmar mensaje")
+                .setMessage(
+                        "Para: " + contact.displayName
+                                + "\nPor: " + label
+                                + "\n\n" + text
+                )
+                .setPositiveButton(
+                        "Sí, preparar",
+                        (dialog, which) ->
+                                openContactMessage(
+                                        contact,
+                                        text,
+                                        method
+                                )
+                )
+                .setNegativeButton(
+                        "Cancelar",
+                        (dialog, which) ->
+                                append(
+                                        "ALMA: Cancelado. No envié nada."
+                                )
+                )
+                .show();
+    }
+
+    private void openContactMessage(
+            ContactCallCommand.Resolution contact,
+            String text,
+            String method
+    ) {
+        Intent intent = new Intent(
+                Intent.ACTION_SENDTO,
+                Uri.parse(
+                        "smsto:" + Uri.encode(
+                                contact.phoneNumber
+                        )
+                )
+        );
+
+        intent.putExtra("sms_body", text);
+
+        if (ContactMessageCommand.METHOD_WHATSAPP.equals(method)) {
+            intent.setPackage("com.whatsapp");
+        }
+
+        stopService(
+                new Intent(this, WakeWordService.class)
+        );
+
+        try {
+            startActivity(intent);
+
+            append(
+                    "ALMA: Preparé el mensaje para "
+                            + contact.displayName
+                            + ". Revisalo antes de enviarlo."
+            );
+
+        } catch (Exception first) {
+            if (ContactMessageCommand.METHOD_WHATSAPP.equals(method)) {
+                intent.setPackage("com.whatsapp.w4b");
+
+                try {
+                    startActivity(intent);
+                } catch (Exception second) {
+                    append(
+                            "ALMA: No pude abrir WhatsApp."
+                    );
+                }
+            } else {
+                append(
+                        "ALMA: No encontré una aplicación de mensajes."
+                );
+            }
+        }
+    }
+
     private boolean handleCallCommand(String message) {
         ContactCallCommand.Draft draft =
                 ContactCallCommand.parse(message);
@@ -1497,6 +1656,10 @@ protected void onResume() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
             startWakeWordListening();
+            return;
+        }
+
+        if (handleContactMessageCommand(message)) {
             return;
         }
 

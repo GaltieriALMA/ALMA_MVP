@@ -51,6 +51,9 @@ public class WakeWordService extends Service
     private CalendarCommand.Draft pendingCalendarDraft = null;
     private ContactCallCommand.Resolution pendingCall = null;
     private String pendingCallMethod = null;
+    private ContactMessageCommand.Draft pendingContactMessage = null;
+    private ContactCallCommand.Resolution pendingMessageContact = null;
+    private String pendingMessageMethod = null;
 
     private volatile byte[] wakeAckAudio;
     private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
@@ -341,6 +344,235 @@ public class WakeWordService extends Service
                 stopSelf();
 
             } catch (Exception ignored) {
+                speaking = false;
+                resetToWakeMode();
+            }
+        }
+    }
+
+    private void clearPendingContactMessage() {
+        pendingContactMessage = null;
+        pendingMessageContact = null;
+        pendingMessageMethod = null;
+    }
+
+    private boolean handlePendingContactMessageFlow(String message) {
+        if (pendingContactMessage == null
+                || pendingMessageContact == null) {
+            return false;
+        }
+
+        String n = normalize(message);
+
+        boolean cancelled =
+                n.equals("no")
+                || n.equals("cancela")
+                || n.equals("cancelalo")
+                || n.equals("espera")
+                || n.equals("dejalo");
+
+        if (cancelled) {
+            clearPendingContactMessage();
+
+            speakAlmaText(
+                    "Cancelado. No envié nada.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
+
+        if (pendingMessageMethod == null) {
+            String method =
+                    ContactMessageCommand.parseMethod(message);
+
+            if (method == null) {
+                speakAlmaText(
+                        "Decime WhatsApp o mensaje de texto.",
+                        this::resumeConversationListening
+                );
+
+                return true;
+            }
+
+            pendingMessageMethod = method;
+            askContactMessageConfirmation();
+            return true;
+        }
+
+        boolean confirmed =
+                n.equals("si")
+                || n.equals("si envia")
+                || n.equals("si envialo")
+                || n.equals("envia")
+                || n.equals("envialo")
+                || n.equals("confirmo");
+
+        if (!confirmed) {
+            speakAlmaText(
+                    "No te entendí. Decí sí, enviá, o cancelá.",
+                    this::resumeConversationListening
+            );
+
+            return true;
+        }
+
+        ContactMessageCommand.Draft draft =
+                pendingContactMessage;
+
+        ContactCallCommand.Resolution contact =
+                pendingMessageContact;
+
+        String method = pendingMessageMethod;
+
+        clearPendingContactMessage();
+
+        speakAlmaText(
+                "Confirmado. Abro el mensaje preparado para "
+                        + contact.displayName
+                        + ".",
+                () -> openContactMessage(
+                        contact,
+                        draft.text,
+                        method
+                )
+        );
+
+        return true;
+    }
+
+    private boolean handleContactMessageRequest(String message) {
+        ContactMessageCommand.Draft draft =
+                ContactMessageCommand.parse(message);
+
+        if (draft == null) return false;
+
+        if (checkSelfPermission(
+                android.Manifest.permission.READ_CONTACTS
+        ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+            speakAlmaText(
+                    "Necesito permiso de contactos. Abrí ALMA y tocá PERMISOS.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
+
+        ContactCallCommand.Resolution contact =
+                ContactCallCommand.resolve(
+                        this,
+                        draft.requestedName
+                );
+
+        if (contact.ambiguous) {
+            speakAlmaText(
+                    "Encontré más de un contacto parecido. Repetí el pedido usando el nombre completo.",
+                    this::resumeConversationListening
+            );
+
+            return true;
+        }
+
+        if (!contact.found()) {
+            speakAlmaText(
+                    "No encontré ese contacto.",
+                    this::resumeConversationListening
+            );
+
+            return true;
+        }
+
+        pendingContactMessage = draft;
+        pendingMessageContact = contact;
+        pendingMessageMethod = draft.preferredMethod;
+
+        if (pendingMessageMethod == null) {
+            speakAlmaText(
+                    "Encontré a "
+                            + contact.displayName
+                            + ". El mensaje dice: "
+                            + draft.text
+                            + ". ¿WhatsApp o mensaje de texto?",
+                    this::resumeConversationListening
+            );
+        } else {
+            askContactMessageConfirmation();
+        }
+
+        return true;
+    }
+
+    private void askContactMessageConfirmation() {
+        if (pendingContactMessage == null
+                || pendingMessageContact == null
+                || pendingMessageMethod == null) {
+
+            clearPendingContactMessage();
+            resetToWakeMode();
+            return;
+        }
+
+        String label =
+                ContactMessageCommand.METHOD_WHATSAPP.equals(
+                        pendingMessageMethod
+                )
+                        ? "WhatsApp"
+                        : "mensaje de texto";
+
+        speakAlmaText(
+                "Para "
+                        + pendingMessageContact.displayName
+                        + ", por "
+                        + label
+                        + ": "
+                        + pendingContactMessage.text
+                        + ". ¿Confirmás? Decí sí, enviá, o cancelá.",
+                this::resumeConversationListening
+        );
+    }
+
+    private void openContactMessage(
+            ContactCallCommand.Resolution contact,
+            String text,
+            String method
+    ) {
+        Intent intent = new Intent(
+                Intent.ACTION_SENDTO,
+                android.net.Uri.parse(
+                        "smsto:" + android.net.Uri.encode(
+                                contact.phoneNumber
+                        )
+                )
+        );
+
+        intent.putExtra("sms_body", text);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        if (ContactMessageCommand.METHOD_WHATSAPP.equals(method)) {
+            intent.setPackage("com.whatsapp");
+        }
+
+        try {
+            startActivity(intent);
+            speaking = false;
+            stopSelf();
+
+        } catch (Exception first) {
+            if (ContactMessageCommand.METHOD_WHATSAPP.equals(method)) {
+                intent.setPackage("com.whatsapp.w4b");
+
+                try {
+                    startActivity(intent);
+                    speaking = false;
+                    stopSelf();
+
+                } catch (Exception second) {
+                    speaking = false;
+                    resetToWakeMode();
+                }
+
+            } else {
                 speaking = false;
                 resetToWakeMode();
             }
@@ -874,6 +1106,10 @@ public class WakeWordService extends Service
             return;
         }
 
+        if (handlePendingContactMessageFlow(message)) {
+            return;
+        }
+
         if (handlePendingCallFlow(message)) {
             return;
         }
@@ -891,6 +1127,10 @@ public class WakeWordService extends Service
         }
 
         if (handleCalendarRequest(message)) {
+            return;
+        }
+
+        if (handleContactMessageRequest(message)) {
             return;
         }
 
