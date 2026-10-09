@@ -21,7 +21,7 @@ def test_shared_application_core():
 
 def test_api_module_contract():
     from backend.api import app
-    routes = {route.path for route in app.routes}
+    routes = set(app.openapi()["paths"])
     assert "/health" in routes
     assert "/chat" in routes
 
