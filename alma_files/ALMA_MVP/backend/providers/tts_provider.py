@@ -8,7 +8,7 @@ class ElevenLabsTTSProvider:
     def __init__(self):
         self.api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
         self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
-        self.model_id = os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5").strip()
+        self.model_id = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2").strip()
 
     def available(self) -> bool:
         return bool(self.api_key and self.voice_id)
