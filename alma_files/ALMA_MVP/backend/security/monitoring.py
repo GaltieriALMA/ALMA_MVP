@@ -5,6 +5,12 @@ from threading import Lock, Thread
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+from backend.security.persistence import (
+    enabled as persistence_enabled,
+    list_deliveries as persistent_list_deliveries,
+    save_delivery,
+)
+
 
 _LOCK = Lock()
 _DELIVERIES: list[dict] = []
@@ -22,8 +28,26 @@ def _save_delivery(item: dict):
         if len(_DELIVERIES) > _MAX_DELIVERIES:
             del _DELIVERIES[_MAX_DELIVERIES:]
 
+    if persistence_enabled():
+        try:
+            save_delivery(item)
+        except Exception as exc:
+            print(
+                "ALMA_SECURITY_DELIVERY_SAVE_ERROR:",
+                type(exc).__name__,
+            )
+
 
 def recent_deliveries(limit: int = 50) -> list[dict]:
+    if persistence_enabled():
+        try:
+            return persistent_list_deliveries(limit)
+        except Exception as exc:
+            print(
+                "ALMA_SECURITY_DELIVERY_READ_ERROR:",
+                type(exc).__name__,
+            )
+
     with _LOCK:
         return [
             dict(item)

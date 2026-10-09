@@ -16,6 +16,12 @@ router = APIRouter(
 from backend.security.auth import require_api_key, require_source_token
 from backend.security.sources import router as sources_router, get_source_record
 from backend.security.alerts import router as alerts_router, create_alert_for_event
+from backend.security.persistence import (
+    backend_name,
+    enabled as persistence_enabled,
+    list_events as persistent_list_events,
+    save_event,
+)
 
 _EVENTS = deque(maxlen=500)
 _LOCK = Lock()
@@ -148,6 +154,15 @@ def _record_event(
     if alert is not None:
         event["alert_id"] = alert["alert_id"]
 
+    if persistence_enabled():
+        try:
+            save_event(event)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="No se pudo persistir el evento de seguridad.",
+            ) from exc
+
     return event
 
 
@@ -232,8 +247,11 @@ def recent_security_events(
 ):
     require_api_key(x_alma_api_key)
 
-    with _LOCK:
-        items = list(_EVENTS)[:limit]
+    if persistence_enabled():
+        items = persistent_list_events(limit)
+    else:
+        with _LOCK:
+            items = list(_EVENTS)[:limit]
 
     return {
         "count": len(items),
@@ -257,6 +275,10 @@ def security_status(
         "status": "ready",
         "module": "ALMA Seguridad",
         "events_buffered": buffered,
+        "persistence": {
+            "backend": backend_name(),
+            "enabled": persistence_enabled(),
+        },
         "supported_sources": [
             "camera",
             "nvr",

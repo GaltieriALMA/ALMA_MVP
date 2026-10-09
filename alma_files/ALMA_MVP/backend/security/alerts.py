@@ -8,6 +8,12 @@ from pydantic import BaseModel, Field
 
 from backend.security.auth import require_api_key
 from backend.security.monitoring import notify_monitoring_center, recent_deliveries
+from backend.security.persistence import (
+    enabled as persistence_enabled,
+    get_alert as persistent_get_alert,
+    list_open_alerts as persistent_list_open_alerts,
+    save_alert,
+)
 
 
 router = APIRouter(
@@ -33,6 +39,24 @@ class EmergencyConfirmationRequest(BaseModel):
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _get_alert(alert_id: str) -> dict | None:
+    if persistence_enabled():
+        item = persistent_get_alert(alert_id)
+        if item is not None:
+            with _LOCK:
+                _ALERTS_BY_ID[alert_id] = dict(item)
+            return dict(item)
+
+    with _LOCK:
+        item = _ALERTS_BY_ID.get(alert_id)
+        return dict(item) if item is not None else None
+
+
+def _persist_alert(alert: dict):
+    if persistence_enabled():
+        save_alert(alert)
 
 
 def create_alert_for_event(event: dict) -> dict | None:
@@ -77,8 +101,10 @@ def create_alert_for_event(event: dict) -> dict | None:
             old = _ALERTS[-1]
             _ALERTS_BY_ID.pop(old["alert_id"], None)
 
-        _ALERTS.appendleft(alert)
-        _ALERTS_BY_ID[alert["alert_id"]] = alert
+        _ALERTS.appendleft(dict(alert))
+        _ALERTS_BY_ID[alert["alert_id"]] = dict(alert)
+
+    _persist_alert(alert)
 
     result = dict(alert)
 
@@ -119,12 +145,15 @@ def open_alerts(
 ):
     require_api_key(x_alma_api_key)
 
-    with _LOCK:
-        items = [
-            dict(item)
-            for item in _ALERTS
-            if item["status"] not in {"dismissed", "closed"}
-        ][:limit]
+    if persistence_enabled():
+        items = persistent_list_open_alerts(limit)
+    else:
+        with _LOCK:
+            items = [
+                dict(item)
+                for item in _ALERTS
+                if item["status"] not in {"dismissed", "closed"}
+            ][:limit]
 
     return {
         "count": len(items),
@@ -143,20 +172,27 @@ def acknowledge_alert(
 ):
     require_api_key(x_alma_api_key)
 
+    alert = _get_alert(alert_id)
+
+    if alert is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Alerta de seguridad no encontrada.",
+        )
+
+    alert["status"] = "acknowledged"
+    alert["acknowledged_at"] = _now()
+    alert["acknowledged_by"] = request.operator.strip()
+
+    if request.note:
+        alert["operator_note"] = request.note.strip()
+
+    _persist_alert(alert)
+
     with _LOCK:
-        alert = _ALERTS_BY_ID.get(alert_id)
+        _ALERTS_BY_ID[alert_id] = dict(alert)
 
-        if alert is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Alerta de seguridad no encontrada.",
-            )
-
-        alert["status"] = "acknowledged"
-        alert["acknowledged_at"] = _now()
-        alert["acknowledged_by"] = request.operator.strip()
-
-        return dict(alert)
+    return dict(alert)
 
 
 @router.post("/{alert_id}/confirm-emergency")
@@ -170,31 +206,37 @@ def confirm_emergency(
 ):
     require_api_key(x_alma_api_key)
 
+    alert = _get_alert(alert_id)
+
+    if alert is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Alerta de seguridad no encontrada.",
+        )
+
+    if not alert["recommend_911_confirmation"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Esta alerta no requiere escalamiento de emergencia.",
+        )
+
+    alert["emergency_confirmed_by"] = request.operator.strip()
+    alert["emergency_confirmed_at"] = _now()
+
+    if request.confirmed:
+        alert["emergency_confirmation"] = "confirmed"
+        alert["status"] = "emergency_confirmed"
+        alert["next_action"] = "contact_emergency_services"
+    else:
+        alert["emergency_confirmation"] = "declined"
+        alert["status"] = "acknowledged"
+        alert["next_action"] = "monitor"
+
+    alert["automatic_911_call"] = False
+
+    _persist_alert(alert)
+
     with _LOCK:
-        alert = _ALERTS_BY_ID.get(alert_id)
+        _ALERTS_BY_ID[alert_id] = dict(alert)
 
-        if alert is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Alerta de seguridad no encontrada.",
-            )
-
-        if not alert["recommend_911_confirmation"]:
-            raise HTTPException(
-                status_code=409,
-                detail="Esta alerta no requiere escalamiento de emergencia.",
-            )
-
-        alert["emergency_confirmed_by"] = request.operator.strip()
-        alert["emergency_confirmed_at"] = _now()
-
-        if request.confirmed:
-            alert["emergency_confirmation"] = "confirmed"
-            alert["status"] = "emergency_confirmed"
-            alert["next_action"] = "contact_emergency_services"
-        else:
-            alert["emergency_confirmation"] = "declined"
-            alert["status"] = "acknowledged"
-            alert["next_action"] = "monitor"
-
-        return dict(alert)
+    return dict(alert)

@@ -6,6 +6,12 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.security.auth import require_api_key
+from backend.security.persistence import (
+    enabled as persistence_enabled,
+    get_source as persistent_get_source,
+    list_sources as persistent_list_sources,
+    save_source,
+)
 
 
 router = APIRouter(
@@ -60,13 +66,16 @@ class SecuritySourceRequest(BaseModel):
 
 
 def get_source_record(source_id: str) -> dict | None:
+    if persistence_enabled():
+        item = persistent_get_source(source_id)
+        if item is not None:
+            with _LOCK:
+                _SOURCES[source_id] = dict(item)
+            return dict(item)
+
     with _LOCK:
         item = _SOURCES.get(source_id)
-
-        if item is None:
-            return None
-
-        return dict(item)
+        return dict(item) if item is not None else None
 
 
 def _clean_capabilities(values: list[str]) -> list[str]:
@@ -136,8 +145,17 @@ def register_source(
         "status": "registered",
     }
 
+    if persistence_enabled():
+        try:
+            save_source(item)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="No se pudo persistir la fuente de seguridad.",
+            ) from exc
+
     with _LOCK:
-        _SOURCES[source_id] = item
+        _SOURCES[source_id] = dict(item)
 
     return item
 
@@ -151,8 +169,15 @@ def list_sources(
 ):
     require_api_key(x_alma_api_key)
 
-    with _LOCK:
-        items = list(_SOURCES.values())
+    if persistence_enabled():
+        items = persistent_list_sources()
+        with _LOCK:
+            _SOURCES.clear()
+            for item in items:
+                _SOURCES[item["source_id"]] = dict(item)
+    else:
+        with _LOCK:
+            items = [dict(x) for x in _SOURCES.values()]
 
     return {
         "count": len(items),
@@ -170,8 +195,7 @@ def get_source(
 ):
     require_api_key(x_alma_api_key)
 
-    with _LOCK:
-        item = _SOURCES.get(source_id)
+    item = get_source_record(source_id)
 
     if item is None:
         raise HTTPException(
@@ -192,19 +216,24 @@ def enable_source(
 ):
     require_api_key(x_alma_api_key)
 
+    item = get_source_record(source_id)
+
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Fuente de seguridad no encontrada.",
+        )
+
+    item["enabled"] = True
+    item["status"] = "registered"
+
+    if persistence_enabled():
+        save_source(item)
+
     with _LOCK:
-        item = _SOURCES.get(source_id)
+        _SOURCES[source_id] = dict(item)
 
-        if item is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Fuente de seguridad no encontrada.",
-            )
-
-        item["enabled"] = True
-        item["status"] = "registered"
-
-        return dict(item)
+    return item
 
 
 @router.post("/{source_id}/disable")
@@ -217,19 +246,24 @@ def disable_source(
 ):
     require_api_key(x_alma_api_key)
 
+    item = get_source_record(source_id)
+
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Fuente de seguridad no encontrada.",
+        )
+
+    item["enabled"] = False
+    item["status"] = "disabled"
+
+    if persistence_enabled():
+        save_source(item)
+
     with _LOCK:
-        item = _SOURCES.get(source_id)
+        _SOURCES[source_id] = dict(item)
 
-        if item is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Fuente de seguridad no encontrada.",
-            )
-
-        item["enabled"] = False
-        item["status"] = "disabled"
-
-        return dict(item)
+    return item
 
 
 @router.get("/{source_id}/capabilities")

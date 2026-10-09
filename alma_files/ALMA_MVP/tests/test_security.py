@@ -14,6 +14,7 @@ API_KEY = "alma_test_key"
 
 def reset_state():
     os.environ["ALMA_API_KEY"] = API_KEY
+    os.environ["ALMA_SECURITY_STORAGE"] = "memory"
     os.environ.pop("ALMA_MONITORING_WEBHOOK_URL", None)
     os.environ.pop("ALMA_MONITORING_WEBHOOK_TOKEN", None)
     os.environ.pop("ALMA_TEST_SOURCE_TOKEN", None)
