@@ -15,10 +15,13 @@ from backend.app import AlmaApplication
 from fastapi.responses import Response
 from backend.providers.tts_provider import ElevenLabsTTSProvider
 from backend.smart_home import detect_smart_home_intent
+from backend.security.api import router as security_router
 app = FastAPI(
     title="ALMA MVP API",
     version="1.0.0",
 )
+
+app.include_router(security_router)
 
 alma = AlmaApplication()
 tts = ElevenLabsTTSProvider()
