@@ -22,6 +22,12 @@ class ProviderManager:
                     "error_type": type(exc).__name__,
                     "message": str(exc)[:300],
                 }
+                print(
+                    "ALMA_OPENAI_ERROR:",
+                    type(exc).__name__,
+                    str(exc)[:500],
+                    flush=True,
+                )
 
         return (
             self.mock.generate(instructions, user_message),
