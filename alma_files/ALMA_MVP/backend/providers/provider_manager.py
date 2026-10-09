@@ -21,7 +21,7 @@ class ProviderManager:
             )
 
         print(
-            "ALMA_OPENAI_READY: model=" + str(self.openai.model),
+            "ALMA_OPENAI_READY: model=" + str(getattr(self.openai, "model", "<test>")),
             flush=True,
         )
 
