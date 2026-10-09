@@ -15,8 +15,12 @@ router = APIRouter(
     tags=["security"],
 )
 
+from backend.security.sources import router as sources_router
+
 _EVENTS = deque(maxlen=500)
 _LOCK = Lock()
+
+router.include_router(sources_router)
 
 SourceType = Literal[
     "camera",
