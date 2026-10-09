@@ -10,6 +10,21 @@ class ProviderManager:
     def generate(self, instructions: str, user_message: str) -> tuple[str, str]:
         self.last_error = None
 
+        if not self.openai.available():
+            print(
+                "ALMA_OPENAI_UNAVAILABLE: OPENAI_API_KEY missing_or_empty",
+                flush=True,
+            )
+            return (
+                self.mock.generate(instructions, user_message),
+                "mock"
+            )
+
+        print(
+            "ALMA_OPENAI_READY: model=" + str(self.openai.model),
+            flush=True,
+        )
+
         if self.openai.available():
             try:
                 return (
