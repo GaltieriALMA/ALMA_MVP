@@ -227,6 +227,29 @@ cameraButton.setOnClickListener(v -> openCamera());
             }
         }
 
+        requestNotificationAccessIfNeeded();
+    }
+
+    private void requestNotificationAccessIfNeeded() {
+        if (!AlmaNotificationListener.hasAccess(this)) {
+            try {
+                Intent intent = new Intent(
+                        android.provider.Settings
+                                .ACTION_NOTIFICATION_LISTENER_SETTINGS
+                );
+
+                startActivity(intent);
+
+                append(
+                        "ALMA: Falta habilitar Acceso a notificaciones para ALMA. Android abrió esa configuración."
+                );
+
+                return;
+
+            } catch (Exception ignored) {
+            }
+        }
+
         append(
                 "ALMA: Los permisos principales están habilitados."
         );
@@ -1207,6 +1230,31 @@ protected void onResume() {
         return true;
     }
 
+    private boolean handleNotificationCommand(String message) {
+        if (!NotificationCommand.matches(message)) {
+            return false;
+        }
+
+        append("Vos: " + message);
+        messageInput.setText("");
+
+        if (!AlmaNotificationListener.hasAccess(this)) {
+            append(
+                    "ALMA: Necesito acceso a notificaciones. Tocá PERMISOS y habilitá ALMA."
+            );
+            return true;
+        }
+
+        String reply =
+                AlmaNotificationListener.readSummary(
+                        this,
+                        NotificationCommand.requestedLimit(message)
+                );
+
+        append("ALMA: " + reply);
+        return true;
+    }
+
     private boolean handleContactMessageCommand(String message) {
         ContactMessageCommand.Draft draft =
                 ContactMessageCommand.parse(message);
@@ -1656,6 +1704,10 @@ protected void onResume() {
         String message = messageInput.getText().toString().trim();
         if (message.isEmpty()) {
             startWakeWordListening();
+            return;
+        }
+
+        if (handleNotificationCommand(message)) {
             return;
         }
 

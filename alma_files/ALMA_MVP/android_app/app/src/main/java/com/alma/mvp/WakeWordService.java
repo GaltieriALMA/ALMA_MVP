@@ -441,6 +441,34 @@ public class WakeWordService extends Service
         return true;
     }
 
+    private boolean handleNotificationRequest(String message) {
+        if (!NotificationCommand.matches(message)) {
+            return false;
+        }
+
+        if (!AlmaNotificationListener.hasAccess(this)) {
+            speakAlmaText(
+                    "Necesito acceso a notificaciones. Abrí ALMA, tocá PERMISOS y habilitá el acceso a notificaciones.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
+
+        String reply =
+                AlmaNotificationListener.readSummary(
+                        this,
+                        NotificationCommand.requestedLimit(message)
+                );
+
+        speakAlmaText(
+                reply,
+                this::resumeConversationListening
+        );
+
+        return true;
+    }
+
     private boolean handleContactMessageRequest(String message) {
         ContactMessageCommand.Draft draft =
                 ContactMessageCommand.parse(message);
@@ -1127,6 +1155,10 @@ public class WakeWordService extends Service
         }
 
         if (handleCalendarRequest(message)) {
+            return;
+        }
+
+        if (handleNotificationRequest(message)) {
             return;
         }
 
