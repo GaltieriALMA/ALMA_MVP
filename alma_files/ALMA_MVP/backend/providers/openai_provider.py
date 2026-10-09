@@ -9,7 +9,15 @@ class OpenAIProvider(BaseProvider):
         except Exception:
             pass
 
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.6")
+        selected_model = model or os.getenv(
+            "OPENAI_MODEL",
+            "gpt-5.6-sol"
+        )
+
+        if selected_model == "gpt-5.6":
+            selected_model = "gpt-5.6-sol"
+
+        self.model = selected_model
         self.api_key = os.getenv("OPENAI_API_KEY")
 
     def available(self) -> bool:
