@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.security.auth import require_api_key
+from backend.security.monitoring import notify_monitoring_center, recent_deliveries
 
 
 router = APIRouter(
@@ -79,7 +80,33 @@ def create_alert_for_event(event: dict) -> dict | None:
         _ALERTS.appendleft(alert)
         _ALERTS_BY_ID[alert["alert_id"]] = alert
 
-    return dict(alert)
+    result = dict(alert)
+
+    notify_monitoring_center(result)
+
+    return result
+
+
+@router.get("/deliveries")
+def monitoring_deliveries(
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=100,
+    ),
+    x_alma_api_key: str | None = Header(
+        default=None,
+        alias="X-ALMA-API-Key",
+    ),
+):
+    require_api_key(x_alma_api_key)
+
+    items = recent_deliveries(limit)
+
+    return {
+        "count": len(items),
+        "deliveries": items,
+    }
 
 
 @router.get("/open")
