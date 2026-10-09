@@ -15,11 +15,13 @@ router = APIRouter(
 
 from backend.security.auth import require_api_key, require_source_token
 from backend.security.sources import router as sources_router, get_source_record
+from backend.security.alerts import router as alerts_router, create_alert_for_event
 
 _EVENTS = deque(maxlen=500)
 _LOCK = Lock()
 
 router.include_router(sources_router)
+router.include_router(alerts_router)
 
 SourceType = Literal[
     "camera",
@@ -140,6 +142,11 @@ def _record_event(
 
     with _LOCK:
         _EVENTS.appendleft(event)
+
+    alert = create_alert_for_event(event)
+
+    if alert is not None:
+        event["alert_id"] = alert["alert_id"]
 
     return event
 
