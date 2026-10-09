@@ -1,6 +1,7 @@
 package com.alma.mvp.tv
 
 import android.app.Activity
+import android.content.Context
 import android.text.InputType
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
@@ -106,7 +107,7 @@ object TvDirectBridge {
     }
 
     @JvmStatic
-    fun send(activity: Activity, action: String, callback: Callback) {
+    fun send(activity: Context, action: String, callback: Callback) {
         scope.launch {
             commandMutex.withLock {
                 val prefs = activity.getSharedPreferences(PREFS, 0)
@@ -296,7 +297,7 @@ object TvDirectBridge {
         }
     }
 
-    private fun discoverHost(activity: Activity): String? {
+    private fun discoverHost(activity: Context): String? {
         val prefs = activity.getSharedPreferences(PREFS, 0)
         if (portOpen(DEFAULT_HOST, 6467, 350) || portOpen(DEFAULT_HOST, 6466, 350)) {
             prefs.edit().putString(HOST_KEY, DEFAULT_HOST).apply()

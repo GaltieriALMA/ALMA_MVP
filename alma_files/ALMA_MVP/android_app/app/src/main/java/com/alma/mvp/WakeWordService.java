@@ -12,6 +12,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 
+import com.alma.mvp.tv.TvDirectBridge;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.text.Normalizer;
@@ -1041,6 +1043,93 @@ public class WakeWordService extends Service
         return true;
     }
 
+    private String tvAction(String message) {
+        String n = normalize(message);
+
+        if (!(n.contains("televisor")
+                || n.contains("tele")
+                || n.contains("tv"))) {
+            return null;
+        }
+
+        if (n.contains("apaga") || n.contains("apagar")) {
+            return "power_off";
+        }
+
+        if (n.contains("enciende")
+                || n.contains("encender")
+                || n.contains("prende")
+                || n.contains("prender")) {
+            return "power_on";
+        }
+
+        if (n.contains("volumen")
+                && (n.contains("subi")
+                || n.contains("sube")
+                || n.contains("aumenta"))) {
+            return "volume_up";
+        }
+
+        if (n.contains("volumen")
+                && (n.contains("baja")
+                || n.contains("baje")
+                || n.contains("disminui"))) {
+            return "volume_down";
+        }
+
+        if (n.contains("silencio")
+                || n.contains("silencia")
+                || n.contains("mute")) {
+            return "mute";
+        }
+
+        if (n.contains("inicio")
+                || n.contains("home")
+                || n.contains("pantalla principal")) {
+            return "home";
+        }
+
+        if (n.contains("atras")
+                || n.contains("volver")
+                || n.contains("volve")) {
+            return "back";
+        }
+
+        return null;
+    }
+
+
+    private boolean handleTvCommand(String message) {
+        String action = tvAction(message);
+
+        if (action == null) {
+            return false;
+        }
+
+        speaking = true;
+        updateNotification("Controlando el televisor");
+
+        TvDirectBridge.send(
+                this,
+                action,
+                (ok, reply) -> handler.post(() -> {
+                    speaking = false;
+
+                    String answer = reply == null || reply.trim().isEmpty()
+                            ? (ok ? "Listo." : "No pude controlar el televisor.")
+                            : reply.trim();
+
+                    speakAlmaText(
+                            answer,
+                            this::resumeConversationListening
+                    );
+                })
+        );
+
+        return true;
+    }
+
+
     private boolean handleVideoCommand(String message) {
         String normalized = normalize(message);
 
@@ -1109,7 +1198,7 @@ public class WakeWordService extends Service
                     }
 
                     speaking = false;
-                    stopSelf();
+                    resetToWakeMode();
                 });
 
             } catch (Exception e) {
@@ -1167,6 +1256,10 @@ public class WakeWordService extends Service
         }
 
         if (handleCallRequest(message)) {
+            return;
+        }
+
+        if (handleTvCommand(message)) {
             return;
         }
 

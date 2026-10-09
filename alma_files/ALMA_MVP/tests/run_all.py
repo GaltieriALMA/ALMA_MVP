@@ -24,6 +24,7 @@ TESTS = [
     ROOT / "tests" / "test_release_b460.py",
     ROOT / "tests" / "test_api_e2e.py",
     ROOT / "tests" / "test_security.py",
+    ROOT / "tests" / "test_media_continuity.py",
 ]
 
 for test in TESTS:

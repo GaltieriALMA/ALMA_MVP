@@ -1094,8 +1094,6 @@ protected void onResume() {
                     sendButton.setEnabled(true);
                     append("ALMA: Reproduciendo en YouTube: " + title);
 
-                    stopService(new Intent(MainActivity.this, WakeWordService.class));
-
                     Intent i = new Intent(
                             Intent.ACTION_VIEW,
                             Uri.parse("https://www.youtube.com/watch?v=" + videoId)
