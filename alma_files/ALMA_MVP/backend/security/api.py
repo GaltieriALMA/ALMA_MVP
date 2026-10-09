@@ -13,8 +13,8 @@ router = APIRouter(
     tags=["security"],
 )
 
-from backend.security.auth import require_api_key
-from backend.security.sources import router as sources_router
+from backend.security.auth import require_api_key, require_source_token
+from backend.security.sources import router as sources_router, get_source_record
 
 _EVENTS = deque(maxlen=500)
 _LOCK = Lock()
@@ -42,6 +42,24 @@ Severity = Literal[
     "high",
     "critical",
 ]
+
+
+class SecurityWebhookRequest(BaseModel):
+    event_type: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+    description: str = Field(
+        min_length=1,
+        max_length=1200,
+    )
+    severity: Severity = "medium"
+    confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+    occurred_at: datetime | None = None
 
 
 class SecurityEventRequest(BaseModel):
@@ -101,16 +119,9 @@ def evaluate_event(event: SecurityEventRequest) -> dict:
     }
 
 
-@router.post("/events")
-def receive_security_event(
-    request: SecurityEventRequest,
-    x_alma_api_key: str | None = Header(
-        default=None,
-        alias="X-ALMA-API-Key",
-    ),
-):
-    require_api_key(x_alma_api_key)
-
+def _record_event(
+    request: SecurityEventRequest
+) -> dict:
     decision = evaluate_event(request)
 
     event = {
@@ -131,6 +142,77 @@ def receive_security_event(
         _EVENTS.appendleft(event)
 
     return event
+
+
+@router.post("/events")
+def receive_security_event(
+    request: SecurityEventRequest,
+    x_alma_api_key: str | None = Header(
+        default=None,
+        alias="X-ALMA-API-Key",
+    ),
+):
+    require_api_key(x_alma_api_key)
+    return _record_event(request)
+
+
+@router.post("/ingest/{source_id}")
+def ingest_source_event(
+    source_id: str,
+    request: SecurityWebhookRequest,
+    x_alma_source_token: str | None = Header(
+        default=None,
+        alias="X-ALMA-Source-Token",
+    ),
+    x_alma_api_key: str | None = Header(
+        default=None,
+        alias="X-ALMA-API-Key",
+    ),
+):
+    source = get_source_record(source_id)
+
+    if source is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Fuente de seguridad no registrada.",
+        )
+
+    if not source.get("enabled", False):
+        raise HTTPException(
+            status_code=409,
+            detail="Fuente de seguridad deshabilitada.",
+        )
+
+    secret_ref = (
+        source.get("secret_ref") or ""
+    ).strip()
+
+    if secret_ref:
+        require_source_token(
+            secret_ref,
+            x_alma_source_token,
+        )
+    else:
+        require_api_key(x_alma_api_key)
+
+    event = SecurityEventRequest(
+        source_type=source["kind"],
+        source_id=source_id,
+        zone=source["zone"],
+        event_type=request.event_type,
+        description=request.description,
+        severity=request.severity,
+        confidence=request.confidence,
+        occurred_at=request.occurred_at,
+    )
+
+    recorded = _record_event(event)
+
+    return {
+        "accepted": True,
+        "source_name": source["name"],
+        "event": recorded,
+    }
 
 
 @router.get("/events/recent")

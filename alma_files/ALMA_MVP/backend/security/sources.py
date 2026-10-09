@@ -58,6 +58,16 @@ class SecuritySourceRequest(BaseModel):
     enabled: bool = True
 
 
+def get_source_record(source_id: str) -> dict | None:
+    with _LOCK:
+        item = _SOURCES.get(source_id)
+
+        if item is None:
+            return None
+
+        return dict(item)
+
+
 def _clean_capabilities(values: list[str]) -> list[str]:
     allowed = {
         "live_view",
