@@ -26,6 +26,7 @@ TESTS = [
     ROOT / "tests" / "test_security.py",
     ROOT / "tests" / "test_media_continuity.py",
     ROOT / "tests" / "test_alarm_reminders.py",
+    ROOT / "tests" / "test_contact_action_safety.py",
 ]
 
 for test in TESTS:

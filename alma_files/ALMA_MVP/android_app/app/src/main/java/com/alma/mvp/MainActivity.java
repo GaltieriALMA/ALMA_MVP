@@ -1391,10 +1391,6 @@ protected void onResume() {
             intent.setPackage("com.whatsapp");
         }
 
-        stopService(
-                new Intent(this, WakeWordService.class)
-        );
-
         try {
             startActivity(intent);
 
@@ -1528,8 +1524,6 @@ protected void onResume() {
             ContactCallCommand.Resolution resolution,
             String method
     ) {
-        stopService(new Intent(this, WakeWordService.class));
-
         if (ContactCallCommand.METHOD_WHATSAPP.equals(method)) {
             openWhatsAppContact(resolution);
             return;
@@ -1554,6 +1548,7 @@ protected void onResume() {
         );
 
         try {
+            stopService(new Intent(this, WakeWordService.class));
             startActivity(call);
         } catch (Exception e) {
             append("ALMA: No pude iniciar la llamada.");

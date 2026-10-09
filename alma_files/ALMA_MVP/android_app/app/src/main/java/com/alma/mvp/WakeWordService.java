@@ -61,7 +61,11 @@ public class WakeWordService extends Service
 
     private volatile byte[] wakeAckAudio;
     private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
+    private static final long ACTION_CONFIRMATION_TTL_MS = 45000L;
+
     private long lastWakeAcceptedAt = 0L;
+    private long pendingCallStartedAt = 0L;
+    private long pendingMessageStartedAt = 0L;
 
     @Override
     public void onCreate() {
@@ -358,12 +362,26 @@ public class WakeWordService extends Service
         pendingContactMessage = null;
         pendingMessageContact = null;
         pendingMessageMethod = null;
+        pendingMessageStartedAt = 0L;
     }
 
     private boolean handlePendingContactMessageFlow(String message) {
         if (pendingContactMessage == null
                 || pendingMessageContact == null) {
             return false;
+        }
+
+        if (pendingMessageStartedAt > 0L
+                && System.currentTimeMillis() - pendingMessageStartedAt
+                > ACTION_CONFIRMATION_TTL_MS) {
+            clearPendingContactMessage();
+
+            speakAlmaText(
+                    "La confirmación del mensaje venció. Repetí el pedido.",
+                    this::resetToWakeMode
+            );
+
+            return true;
         }
 
         String n = normalize(message);
@@ -518,6 +536,7 @@ public class WakeWordService extends Service
         pendingContactMessage = draft;
         pendingMessageContact = contact;
         pendingMessageMethod = draft.preferredMethod;
+        pendingMessageStartedAt = System.currentTimeMillis();
 
         if (pendingMessageMethod == null) {
             speakAlmaText(
@@ -588,7 +607,7 @@ public class WakeWordService extends Service
         try {
             startActivity(intent);
             speaking = false;
-            stopSelf();
+            resetToWakeMode();
 
         } catch (Exception first) {
             if (ContactMessageCommand.METHOD_WHATSAPP.equals(method)) {
@@ -597,7 +616,7 @@ public class WakeWordService extends Service
                 try {
                     startActivity(intent);
                     speaking = false;
-                    stopSelf();
+                    resetToWakeMode();
 
                 } catch (Exception second) {
                     speaking = false;
@@ -614,10 +633,24 @@ public class WakeWordService extends Service
     private void clearPendingCall() {
         pendingCall = null;
         pendingCallMethod = null;
+        pendingCallStartedAt = 0L;
     }
 
     private boolean handlePendingCallFlow(String message) {
         if (pendingCall == null) return false;
+
+        if (pendingCallStartedAt > 0L
+                && System.currentTimeMillis() - pendingCallStartedAt
+                > ACTION_CONFIRMATION_TTL_MS) {
+            clearPendingCall();
+
+            speakAlmaText(
+                    "La confirmación de la llamada venció. Repetí el pedido.",
+                    this::resetToWakeMode
+            );
+
+            return true;
+        }
 
         String n = normalize(message);
 
@@ -749,6 +782,7 @@ public class WakeWordService extends Service
 
         pendingCall = resolution;
         pendingCallMethod = draft.preferredMethod;
+        pendingCallStartedAt = System.currentTimeMillis();
 
         if (pendingCallMethod == null) {
             speakAlmaText(
