@@ -1,4 +1,4 @@
-name: Build ALMA Android
+name: ALMA Quality Gate
 
 on:
   push:
@@ -7,15 +7,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: alma_files/ALMA_MVP/android_app
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend dependencies
+        working-directory: alma_files/ALMA_MVP
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt httpx
+          python -m pip check
+
+      - name: Compile backend
+        working-directory: alma_files/ALMA_MVP
+        run: PYTHONPATH=. python -m compileall -q backend
+
+      - name: Run complete ALMA regression suite
+        working-directory: alma_files/ALMA_MVP
+        run: PYTHONPATH=. python tests/run_all.py
+
+      - name: Check repository secrets
+        run: |
+          if git ls-files | grep -Eq '(^|/)\.env$'; then
+            echo "ERROR: tracked .env file"
+            exit 1
+          fi
+
+          if git grep -nE 'sk-[A-Za-z0-9_-]{20,}|sb_secret_[A-Za-z0-9_-]+' -- ':!*.md'; then
+            echo "ERROR: possible provider secret committed"
+            exit 1
+          fi
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -30,6 +59,7 @@ jobs:
           key: alma-debug-keystore-v2
 
       - name: Create stable debug signing key
+        working-directory: alma_files/ALMA_MVP/android_app
         run: |
           if [ ! -f "$HOME/.android/debug.keystore" ]; then
             mkdir -p "$HOME/.android"
@@ -37,15 +67,20 @@ jobs:
           fi
 
       - name: Make Gradle executable
+        working-directory: alma_files/ALMA_MVP/android_app
         run: chmod +x gradlew
+
       - name: Download Vosk Spanish model
+        working-directory: alma_files/ALMA_MVP/android_app
         run: |
           mkdir -p app/src/main/assets
-          curl -L -o /tmp/vosk-model.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+          curl --fail --location --retry 3 -o /tmp/vosk-model.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
           unzip -q /tmp/vosk-model.zip -d /tmp/vosk-model
           mv /tmp/vosk-model/vosk-model-small-es-0.42 app/src/main/assets/model-es
           printf 'alma-vosk-es-0.42\n' > app/src/main/assets/model-es/uuid
-      - name: Build APK
+
+      - name: Build Android APK
+        working-directory: alma_files/ALMA_MVP/android_app
         run: ./gradlew assembleDebug
 
       - name: Upload APK

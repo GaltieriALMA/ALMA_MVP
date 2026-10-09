@@ -26,6 +26,7 @@ SourceKind = Literal[
     "fire",
     "panic",
     "intercom",
+    "analytics",
     "other",
 ]
 
