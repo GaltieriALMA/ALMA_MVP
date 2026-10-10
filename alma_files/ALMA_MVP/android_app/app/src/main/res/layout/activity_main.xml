@@ -95,5 +95,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/send" />
+    <Button android:id="@+id/historyButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="HISTORIAL" />
 </LinearLayout>
 </ScrollView>
