@@ -1,0 +1,16 @@
+[
+  {
+    "fecha": "2026-10-11T20:10:24.669428+00:00",
+    "problema": "Error de sangria",
+    "intento": "Corregir espacios",
+    "resultado": "Sintaxis verificada",
+    "verificado": true
+  },
+  {
+    "fecha": "2026-10-11T20:15:04.841361+00:00",
+    "problema": "Falla de conexion",
+    "intento": "Reiniciar servidor",
+    "resultado": "Pendiente de prueba",
+    "verificado": false
+  }
+]
