@@ -27,3 +27,15 @@ def consultar_experiencia(tema):
         if normalizar(tema) in normalizar(experiencia['problema']) and experiencia['verificado']:
             return experiencia['intento']
     return 'Todavía no tengo una solución comprobada'
+
+def decidir_con_experiencia(problema):
+    solucion = consultar_experiencia(problema)
+    if solucion == 'Todavía no tengo una solución comprobada':
+        return {
+            'estado': 'requiere_investigacion',
+            'accion': 'Investigar y verificar'
+        }
+    return {
+        'estado': 'solucion_conocida',
+        'accion': solucion
+    }
