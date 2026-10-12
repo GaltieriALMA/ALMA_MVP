@@ -26,6 +26,9 @@ public class Alma3DView extends FrameLayout {
 
     private SurfaceView surfaceView;
     private ModelViewer modelViewer;
+    private LightManager frontalManager;
+    private int frontalEntity;
+
     private boolean rendering = false;
 
     private final Choreographer.FrameCallback frameCallback =
@@ -35,7 +38,16 @@ public class Alma3DView extends FrameLayout {
                     if (!rendering) return;
 
                     if (modelViewer != null) {
+                        
+                        if (frontalManager != null) {
+                            float[] d = modelViewer.getCamera().getForwardVector(null);
+                            frontalManager.setDirection(
+                                frontalManager.getInstance(frontalEntity),
+                                d[0], d[1], d[2]
+                            );
+                        }
                         modelViewer.render(frameTimeNanos);
+
                     }
 
                     Choreographer.getInstance()
@@ -92,7 +104,10 @@ public class Alma3DView extends FrameLayout {
                             surfaceView,
                             engine,
                             uiHelper,
-                            null
+                            new com.google.android.filament.utils.Manipulator.Builder()
+    .targetPosition(0f, 0f, -4f)
+    .viewport(surfaceView.getWidth(), surfaceView.getHeight())
+    .build(com.google.android.filament.utils.Manipulator.Mode.ORBIT)
                     );
 
             surfaceView.setOnTouchListener(modelViewer);
@@ -100,7 +115,7 @@ public class Alma3DView extends FrameLayout {
             int keyLight = EntityManager.get().create();
             new LightManager.Builder(LightManager.Type.DIRECTIONAL)
                     .color(1.0f, 0.96f, 0.92f)
-                    .intensity(110000.0f)
+                    .intensity(35000.0f)
                     .direction(0.0f, -0.15f, -1.0f)
                     .castShadows(false)
                     .build(engine, keyLight);
@@ -109,24 +124,43 @@ public class Alma3DView extends FrameLayout {
             int fillLight = EntityManager.get().create();
             new LightManager.Builder(LightManager.Type.DIRECTIONAL)
                     .color(0.78f, 0.86f, 1.0f)
-                    .intensity(45000.0f)
+                    .intensity(12000.0f)
                     .direction(-0.8f, -0.10f, -0.6f)
                     .castShadows(false)
                     .build(engine, fillLight);
             modelViewer.getScene().addEntity(fillLight);
 
-            modelViewer.getCamera().setExposure(
+            // Luz frontal para mejorar visibilidad del rostro
+int faceLight = EntityManager.get().create();
+new LightManager.Builder(LightManager.Type.DIRECTIONAL)
+        .color(1.0f, 0.96f, 0.92f)
+        .intensity(25000.0f)
+        .direction(0.0f, -0.2f, -1.0f)
+        .castShadows(false)
+        .build(engine, faceLight);
+modelViewer.getScene().addEntity(faceLight);
+            frontalManager = engine.getLightManager();
+            frontalEntity = faceLight;
+
+
+modelViewer.getCamera().setExposure(
                     8.0f,
                     1.0f / 60.0f,
-                    160.0f
+                    400.0f
             );
 
-            modelViewer.setCameraFocalLength(34.0f);
+            modelViewer.getScene().setSkybox(
+    new com.google.android.filament.Skybox.Builder()
+        .color(0.65f, 0.68f, 0.72f, 1.0f)
+        .build(engine)
+);
+
+modelViewer.setCameraFocalLength(53.0f);
 
             try (InputStream input =
                          getContext()
                                  .getAssets()
-                                 .open("alma_idle12.glb")) {
+                                 .open("ALMA_ORIGINAL_COLOR.glb")) {
 
                 byte[] bytes = new byte[input.available()];
 
