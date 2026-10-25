@@ -76,9 +76,9 @@ private final Runnable partialWakeRunnable = () -> {
     String text = pendingWakePartial;
     pendingWakePartial = "";
 
-    if (containsWakeWord(text)) {
-        wakeDetected(text);
-    }
+    if (false) {
+            wakeDetected(text);
+        }
 };
     public VoskWakeWord(Context context, Listener listener) {
         this.context = context.getApplicationContext();
