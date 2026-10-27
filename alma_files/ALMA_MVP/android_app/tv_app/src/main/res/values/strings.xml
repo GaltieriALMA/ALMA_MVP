@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ALMA</string>
+    <string name="title">ALMA</string>
+    <string name="subtitle">IA virtual</string>
+    <string name="message_hint">Escribí un mensaje…</string>
+    <string name="send">Enviar</string>
+</resources>
