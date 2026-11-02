@@ -1294,6 +1294,23 @@ public class WakeWordService extends Service
         return true;
     }
 
+
+    private void saveVoiceHistory(String line) {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("alma_chat", MODE_PRIVATE);
+
+        synchronized (WakeWordService.class) {
+            String history = prefs.getString("history", "");
+            history += "\\n\\n" + line;
+
+            if (history.length() > 50000) {
+                history = history.substring(history.length() - 50000);
+            }
+
+            prefs.edit().putString("history", history).apply();
+        }
+    }
+
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
@@ -1390,6 +1407,7 @@ public class WakeWordService extends Service
                         token
                 );
 
+                saveVoiceHistory("Vos: " + message + "\n\nALMA: " + reply);
                 byte[] audio = api.tts(reply, token);
 
                 handler.post(() ->

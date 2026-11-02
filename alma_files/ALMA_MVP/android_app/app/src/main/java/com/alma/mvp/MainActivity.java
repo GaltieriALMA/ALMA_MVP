@@ -102,12 +102,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         chatText = findViewById(R.id.chatText);
+        String historialGuardado = getSharedPreferences("alma_chat", MODE_PRIVATE)
+                .getString("history", "");
+        if (historialGuardado != null && !historialGuardado.isEmpty()) {
+            chatText.setText(historialGuardado);
+        }
         findViewById(R.id.historyButton).setOnClickListener(v -> {
             String saved = getSharedPreferences("alma_chat", MODE_PRIVATE)
                     .getString("history", "");
             new android.app.AlertDialog.Builder(this)
                     .setTitle("Historial de ALMA")
-                    .setMessage(saved.isEmpty() ? "No hay conversaciones guardadas." : saved)
+                    .setMessage(saved.isEmpty() ? "No hay conversaciones guardadas." : saved.replace("\\n", "\n"))
                     .setPositiveButton("Cerrar", null)
                     .show();
         });
