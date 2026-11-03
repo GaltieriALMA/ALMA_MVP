@@ -40,7 +40,7 @@ public final class VoskWakeWord {
             Pattern.compile("\\balma\\b");
 
     private static final Pattern INTERRUPT_WORD =
-            Pattern.compile("\\b(alma|para|pará|espera|esperá)\\b");
+            Pattern.compile("\\b(para|pará|espera|esperá|detente)\\b");
 
     private final Context context;
     private final Listener listener;
@@ -294,7 +294,11 @@ private final Runnable partialWakeRunnable = () -> {
                     handler.post(() -> handleResult(hypothesis));
                 } else {
                     String hypothesis = currentRecognizer.getPartialResult();
-                    handler.post(() -> handlePartialResult(hypothesis));
+                    if (activeMode == Mode.INTERRUPT) {
+                    handler.post(() -> handleResult(hypothesis));
+                } else {
+    handler.post(() -> handlePartialResult(hypothesis));
+}
                 }
             }
         } catch (Exception e) {
