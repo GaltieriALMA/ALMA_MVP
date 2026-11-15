@@ -1468,7 +1468,7 @@ public class WakeWordService extends Service
 
     // Las interrupciones por voz quedan desactivadas hasta demostrar que
     // Vosk no se dispara con el audio de la propia ALMA (ver onInterrupt).
-    private static final boolean INTERRUPT_ENABLED = false;
+    private static final boolean INTERRUPT_ENABLED = true;
 
     // Diagnóstico visible en el historial del propio celular ("[DIAG] ...").
     // Poner en false cuando el problema esté verificado como resuelto.

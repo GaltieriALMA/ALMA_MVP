@@ -5,6 +5,7 @@ import android.content.Context;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
@@ -50,6 +51,7 @@ public final class VoskWakeWord {
     private Model model;
     private Recognizer recognizer;
     private AudioRecord audioRecord;
+    private AcousticEchoCanceler aec;
     private Thread audioThread;
 
     private Mode desiredMode = Mode.NONE;
@@ -166,7 +168,7 @@ private final Runnable partialWakeRunnable = () -> {
                 recognizer = new Recognizer(
                         model,
                         SAMPLE_RATE,
-                        "[\"para\", \"pará\", \"espera\", \"esperá\", \"detente\", \"[unk]\"]"
+                        "[\"alma para\", \"alma pará\", \"alma espera\", \"alma esperá\", \"alma detente\", \"[unk]\"]"
                 );
             } else {
                 recognizer = new Recognizer(model, SAMPLE_RATE);
@@ -194,7 +196,9 @@ private final Runnable partialWakeRunnable = () -> {
             int bufferBytes = Math.max(minBufferBytes, 6400);
 
             audioRecord = new AudioRecord(
-                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    desiredMode == Mode.INTERRUPT
+                            ? MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                            : MediaRecorder.AudioSource.VOICE_RECOGNITION,
                     (int) SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
@@ -218,6 +222,13 @@ private final Runnable partialWakeRunnable = () -> {
             } else {
                 conversationAudio = null;
                 conversationPeak = 0;
+            }
+
+            if (desiredMode == Mode.INTERRUPT && AcousticEchoCanceler.isAvailable()) {
+                try {
+                    aec = AcousticEchoCanceler.create(audioRecord.getAudioSessionId());
+                    if (aec != null) aec.setEnabled(true);
+                } catch (Exception ignored) { }
             }
 
             audioRecord.startRecording();
@@ -382,23 +393,27 @@ private double wakeConfidenceFromJson(String hypothesis) {
     }
 
     private double interruptConfidenceFromJson(String hypothesis) {
-        try {
-            org.json.JSONArray words = new JSONObject(hypothesis).optJSONArray("result");
-            if (words == null) return 0.0;
-            for (int i = 0; i < words.length(); i++) {
-                JSONObject word = words.optJSONObject(i);
-                if (word != null && containsInterruptWord(word.optString("word", ""))
-                        && word.optDouble("conf", 0.0) >= 0.70) return 1.0;
-            }
-        } catch (Exception ignored) { }
+    try {
+        org.json.JSONArray words = new JSONObject(hypothesis).optJSONArray("result");
+        if (words == null || words.length() != 2) return 0.0;
+        JSONObject wake = words.optJSONObject(0);
+        JSONObject orden = words.optJSONObject(1);
+        if (wake == null || orden == null) return 0.0;
+        if (!"alma".equalsIgnoreCase(wake.optString("word", ""))) return 0.0;
+        String accion = orden.optString("word", "").toLowerCase(Locale.ROOT);
+        if (!accion.matches("^(para|pará|espera|esperá|detente)$")) return 0.0;
+        return Math.min(wake.optDouble("conf", 0.0),
+                        orden.optDouble("conf", 0.0));
+    } catch (Exception ignored) {
         return 0.0;
     }
+}
 
     private boolean containsInterruptWord(String text) {
         if (text == null || text.isEmpty()) return false;
 
         String command = text.toLowerCase(Locale.ROOT).trim();
-        return command.matches("^(para|pará|espera|esperá|detente)$");
+        return command.matches("^alma\\s+(para|pará|espera|esperá|detente)$");
     }
 
     private void interruptDetected(String recognizedText) {
@@ -529,6 +544,11 @@ pendingWakePartial = "";
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        if (aec != null) {
+            try { aec.release(); } catch (Exception ignored) { }
+            aec = null;
         }
 
         if (recorder != null) {
