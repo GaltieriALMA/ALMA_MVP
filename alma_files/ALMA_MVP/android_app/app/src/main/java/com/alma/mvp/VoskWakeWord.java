@@ -68,6 +68,7 @@ public final class VoskWakeWord {
     private long conversationSamples = 0L;
     private static final double MIN_CONVERSATION_RMS = 1400.0;
     private static final double MIN_WAKE_CONFIDENCE = 0.85;
+    private static final int MAX_WAKE_AUDIO_BYTES = 160000;
     private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
 private volatile String pendingWakePartial = "";
 
@@ -258,6 +259,7 @@ private final Runnable partialWakeRunnable = () -> {
     private void runAudioLoop(long myGeneration) {
         Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
         short[] buffer = new short[1600];
+        ByteArrayOutputStream wakeAudio = new ByteArrayOutputStream(64000);
 
         try {
             while (!stopRequested && myGeneration == engineGeneration) {
@@ -280,6 +282,17 @@ private final Runnable partialWakeRunnable = () -> {
 
                 if (read == 0) continue;
 
+                if (activeMode == Mode.WAKE) {
+                    if (wakeAudio.size() + read * 2 > MAX_WAKE_AUDIO_BYTES) {
+                        wakeAudio.reset();
+                    }
+                    for (int i = 0; i < read; i++) {
+                        short sample = buffer[i];
+                        wakeAudio.write(sample & 255);
+                        wakeAudio.write((sample >> 8) & 255);
+                    }
+                }
+
                 if (activeMode == Mode.CONVERSATION && conversationAudio != null) {
                     for (int i = 0; i < read; i++) {
                         short sample = buffer[i];
@@ -297,9 +310,24 @@ private final Runnable partialWakeRunnable = () -> {
 
                 if (currentRecognizer.acceptWaveForm(buffer, read)) {
                     String hypothesis = currentRecognizer.getResult();
-                    handler.post(() -> {
-                        if (myGeneration == engineGeneration) handleResult(hypothesis);
-                    });
+                    if (activeMode == Mode.WAKE) {
+                        byte[] captured = wakeAudio.toByteArray();
+                        wakeAudio.reset();
+                        if (isWakeCandidate(hypothesis)
+                                && verifyWakeAudio(captured)
+                                && !stopRequested
+                                && myGeneration == engineGeneration) {
+                            handler.post(() -> {
+                                if (myGeneration == engineGeneration)
+                                    handleResult(hypothesis);
+                            });
+                        }
+                    } else {
+                        handler.post(() -> {
+                            if (myGeneration == engineGeneration)
+                                handleResult(hypothesis);
+                        });
+                    }
                 } else {
                     String hypothesis = currentRecognizer.getPartialResult();
                     handler.post(() -> {
@@ -343,6 +371,34 @@ private final Runnable partialWakeRunnable = () -> {
             );
         }
     };
+
+    private boolean isWakeCandidate(String hypothesis) {
+        String text = textFromJson(hypothesis, "text").toLowerCase(Locale.ROOT);
+        return text.matches("^(?:hola\\s+)?alma$")
+                && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE;
+    }
+
+    private boolean verifyWakeAudio(byte[] pcm16) {
+        if (model == null || pcm16 == null || pcm16.length < 8000
+                || pcm16.length > MAX_WAKE_AUDIO_BYTES) return false;
+
+        Recognizer verifier = null;
+        try {
+            verifier = new Recognizer(model, SAMPLE_RATE);
+            verifier.setWords(true);
+            verifier.acceptWaveForm(pcm16, pcm16.length);
+            String hypothesis = verifier.getFinalResult();
+            String text = textFromJson(hypothesis, "text").toLowerCase(Locale.ROOT);
+            return text.matches("^(?:hola\\s+)?alma$")
+                    && wakeConfidenceFromJson(hypothesis) >= 0.60;
+        } catch (Exception ignored) {
+            return false;
+        } finally {
+            if (verifier != null) {
+                try { verifier.close(); } catch (Exception ignored) {}
+            }
+        }
+    }
 
     private String textFromJson(String hypothesis, String key) {
         try {
