@@ -58,6 +58,7 @@ public final class VoskWakeWord {
     private boolean loadingModel = false;
     private boolean destroyed = false;
     private volatile boolean stopRequested = false;
+    private volatile long engineGeneration = 0L;
 
     private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
@@ -229,8 +230,9 @@ private final Runnable partialWakeRunnable = () -> {
                 );
             }
 
+            final long myGeneration = engineGeneration;
             audioThread = new Thread(
-                    this::runAudioLoop,
+                    () -> runAudioLoop(myGeneration),
                     "ALMA-Vosk-Mic"
             );
             audioThread.start();
@@ -253,12 +255,12 @@ private final Runnable partialWakeRunnable = () -> {
         }
     }
 
-    private void runAudioLoop() {
+    private void runAudioLoop(long myGeneration) {
         Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
         short[] buffer = new short[1600];
 
         try {
-            while (!stopRequested) {
+            while (!stopRequested && myGeneration == engineGeneration) {
                 AudioRecord recorder = audioRecord;
                 Recognizer currentRecognizer = recognizer;
 
@@ -268,7 +270,7 @@ private final Runnable partialWakeRunnable = () -> {
 
                 int read = recorder.read(buffer, 0, buffer.length);
 
-                if (stopRequested) return;
+                if (stopRequested || myGeneration != engineGeneration) return;
 
                 if (read < 0) {
                     throw new IllegalStateException(
@@ -295,14 +297,18 @@ private final Runnable partialWakeRunnable = () -> {
 
                 if (currentRecognizer.acceptWaveForm(buffer, read)) {
                     String hypothesis = currentRecognizer.getResult();
-                    handler.post(() -> handleResult(hypothesis));
+                    handler.post(() -> {
+                        if (myGeneration == engineGeneration) handleResult(hypothesis);
+                    });
                 } else {
                     String hypothesis = currentRecognizer.getPartialResult();
-                    handler.post(() -> handlePartialResult(hypothesis));
+                    handler.post(() -> {
+                        if (myGeneration == engineGeneration) handlePartialResult(hypothesis);
+                    });
                 }
             }
         } catch (Exception e) {
-            if (!stopRequested && !destroyed) {
+            if (!stopRequested && !destroyed && myGeneration == engineGeneration) {
                 handler.post(() -> {
                     stopEngine();
 
@@ -503,6 +509,7 @@ pendingWakePartial = "";
     }
 
     private void stopEngine() {
+        engineGeneration++;
         handler.removeCallbacks(conversationTimeoutRunnable);
 handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";
