@@ -1517,6 +1517,11 @@ public class WakeWordService extends Service
             byte[] audio,
             Runnable afterPlayback
     ) {
+        if (destroyed) {
+            diag("PLAY ignorado: servicio destruido");
+            return;
+        }
+
         speaking = true;
 
         if (audio == null || audio.length == 0) {
@@ -1894,6 +1899,16 @@ public class WakeWordService extends Service
             } catch (Exception ignored) {
             }
             currentPlayer = null;
+        }
+
+        if (currentAudioFile != null) {
+            try {
+                if (!currentAudioFile.delete())
+                    diag("SERVICE MP3 temporal no eliminado");
+            } catch (Exception e) {
+                diag("SERVICE error limpiando MP3: " + e);
+            }
+            currentAudioFile = null;
         }
 
         super.onDestroy();

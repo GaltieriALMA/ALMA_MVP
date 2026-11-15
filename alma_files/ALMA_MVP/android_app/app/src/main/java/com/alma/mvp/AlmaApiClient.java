@@ -278,6 +278,7 @@ public class AlmaApiClient {
                                                                                                                                                             }
 
                                                                                                                                                                     int status = connection.getResponseCode();
+        long expectedBytes = connection.getContentLengthLong();
                                                                                                                                                                             InputStream stream = status >= 200 && status < 300
                                                                                                                                                                                             ? connection.getInputStream()
                                                                                                                                                                                                             : connection.getErrorStream();
@@ -299,7 +300,9 @@ public class AlmaApiClient {
                                                                                                                                                                                                                                                                                                                                                 throw new IOException("ALMA TTS HTTP " + status);
                                                                                                                                                                                                                                                                                                                                                         }
 
-                                                                                                                                                                                                                                                                                                                                                                return audio.toByteArray();
+                                                                                                                                                                                                                                                                                                                                                                byte[] received = audio.toByteArray();
+        android.util.Log.i("ALMA_TTS_DIAG", "expected=" + expectedBytes + " received=" + received.length);
+        return received;
                                                                                                                                                                                                                                                                                                                                                                     }
         
 }
