@@ -15,16 +15,20 @@ android {
         applicationId = "com.alma.mvp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 50
-        versionName = "0.7.15"
+        versionCode = 53
+        versionName = "0.8.0"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
     buildTypes {
         getByName("debug") {
+            applicationIdSuffix = ".prueba"
+            resValue("string", "nombre_alma_prueba", "ALMA PRUEBA")
             manifestPlaceholders["usesCleartext"] = "true"
         }
         getByName("release") {
+            applicationIdSuffix = ".prueba"
+            resValue("string", "nombre_alma_prueba", "ALMA PRUEBA")
             manifestPlaceholders["usesCleartext"] = "false"
             isMinifyEnabled = false
         }

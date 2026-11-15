@@ -102,24 +102,21 @@ public class MainActivity extends AppCompatActivity {
         }
 
         chatText = findViewById(R.id.chatText);
-        String historialGuardado = getSharedPreferences("alma_chat", MODE_PRIVATE)
-                .getString("history", "");
+        String historialGuardado = ChatHistoryStore.load(this);
         if (historialGuardado != null && !historialGuardado.isEmpty()) {
             chatText.setText(historialGuardado);
         }
         findViewById(R.id.historyButton).setOnClickListener(v -> {
-            String saved = getSharedPreferences("alma_chat", MODE_PRIVATE)
-                    .getString("history", "");
+            String saved = ChatHistoryStore.load(this);
             new android.app.AlertDialog.Builder(this)
                     .setTitle("Historial de ALMA")
-                    .setMessage(saved.isEmpty() ? "No hay conversaciones guardadas." : saved.replace("\\n", "\n"))
+                    .setMessage(saved.isEmpty() ? "No hay conversaciones guardadas." : saved)
                     .setPositiveButton("Cerrar", null)
                     .show();
         });
 
 
-        String savedChat = getSharedPreferences("alma_chat", MODE_PRIVATE)
-                .getString("history", "");
+        String savedChat = ChatHistoryStore.load(this);
 
         if (!savedChat.isEmpty()) {
             chatText.setText(savedChat);
@@ -560,6 +557,7 @@ cameraButton.setOnClickListener(v -> openCamera());
     @Override
 protected void onResume() {
     super.onResume();
+    if (chatText != null) chatText.setText(ChatHistoryStore.load(this));
     android.content.SharedPreferences p=getSharedPreferences("alma_alarm_log",MODE_PRIVATE); if(p.getBoolean("spoken_history_unread",false)){String s=p.getString("spoken_history",""); if(s!=null&&!s.trim().isEmpty()) append("ALMA [alarmas]: "+s); p.edit().putString("spoken_history","").putBoolean("spoken_history_unread",false).apply();}
 
     refreshMeetingModeButton();
@@ -635,7 +633,7 @@ protected void onResume() {
 
                 handler.postDelayed(
                         () -> startWakeWordListening(),
-                        700
+                        2000
                 );
             }
 
@@ -814,7 +812,7 @@ protected void onResume() {
                 if (in != null) {
                         BitmapFactory.Options options = new BitmapFactory.Options(); options.inSampleSize = 4; android.graphics.Bitmap photo = BitmapFactory.decodeStream(in, null, options);
 
-                                                ByteArrayOutputStream out = new ByteArrayOutputStream(); photo.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out); messageInput.setText("__IMAGE__:" + Base64.encodeToString(out.toByteArray(),Base64.NO_WRAP)); sendMessage();
+                                                ByteArrayOutputStream out = new ByteArrayOutputStream(); photo.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out); sendImage(out.toByteArray());
                                                     }
                                                     }
             catch (Exception e) { append("ALMA: No pude procesar la foto."); }
@@ -1719,34 +1717,42 @@ protected void onResume() {
         return true;
     }
 
+    private void sendImage(byte[] imageBytes) {
+        sendMessagePayload("__IMAGE__:" + Base64.encodeToString(imageBytes, Base64.NO_WRAP));
+    }
+
     private void sendMessage() {
-        String message = messageInput.getText().toString().trim();
+        sendMessagePayload(messageInput.getText().toString().trim());
+    }
+
+    private void sendMessagePayload(String message) {
+        final boolean isImage = message.startsWith("__IMAGE__:");
         if (message.isEmpty()) {
             startWakeWordListening();
             return;
         }
 
-        if (handleNotificationCommand(message)) {
+        if (!isImage && handleNotificationCommand(message)) {
             return;
         }
 
-        if (handleContactMessageCommand(message)) {
+        if (!isImage && handleContactMessageCommand(message)) {
             return;
         }
 
-        if (handleCallCommand(message)) {
+        if (!isImage && handleCallCommand(message)) {
             return;
         }
 
-        if (handleCalendarCommand(message)) {
+        if (!isImage && handleCalendarCommand(message)) {
             return;
         }
 
-        if (handleNavigationCommand(message)) {
+        if (!isImage && handleNavigationCommand(message)) {
             return;
         }
 
-        if (handleLocalAppLaunchCommand(message)) {
+        if (!isImage && handleLocalAppLaunchCommand(message)) {
             return;
         }
 
@@ -1757,20 +1763,19 @@ protected void onResume() {
             return;
         }
 
-        if (handleLocalYoutubeCommand(message, token)) {
+        if (!isImage && handleLocalYoutubeCommand(message, token)) {
             return;
         }
 
-        if (handleLocalTvCommand(message, token)) {
+        if (!isImage && handleLocalTvCommand(message, token)) {
             return;
         }
 
-        if (handleLocalAlarmCommand(message, token)) {
+        if (!isImage && handleLocalAlarmCommand(message, token)) {
             return;
         }
 
-        if (!message.startsWith("__IMAGE__:")
-                && sendLiveVisionMessage(message, token)) {
+        if (!isImage && sendLiveVisionMessage(message, token)) {
             return;
         }
 
@@ -1908,18 +1913,8 @@ protected void onResume() {
             lastAlmaReply = line.substring(6).trim();
         }
 
-        chatText.append("\n\n" + line);
-
-        String history = chatText.getText().toString();
-
-        if (history.length() > 50000) {
-            history = history.substring(history.length() - 50000);
-        }
-
-        getSharedPreferences("alma_chat", MODE_PRIVATE)
-                .edit()
-                .putString("history", history)
-                .apply();
+        ChatHistoryStore.append(this, line);
+        chatText.setText(ChatHistoryStore.load(this));
     }
 
     @Override

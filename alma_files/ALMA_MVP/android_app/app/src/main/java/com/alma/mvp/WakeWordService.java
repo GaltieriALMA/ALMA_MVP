@@ -41,7 +41,7 @@ public class WakeWordService extends Service
 
     private final AlmaApiClient api = new AlmaApiClient();
     private final String userId = "android_local_user";
-    private final String sessionId = UUID.randomUUID().toString();
+    private String sessionId;
 
     private SecureTokenStore tokenStore;
     private MediaPlayer currentPlayer;
@@ -70,6 +70,8 @@ public class WakeWordService extends Service
     @Override
     public void onCreate() {
         super.onCreate();
+        sessionId = ChatHistoryStore.sessionId(this);
+        diag("BUILD " + BUILD_ID + " INTERRUPT_ENABLED=" + INTERRUPT_ENABLED);
 
         tokenStore = new SecureTokenStore(this);
         voskWakeWord = new VoskWakeWord(this, this);
@@ -172,6 +174,7 @@ public class WakeWordService extends Service
     }
 
     private void resumeConversationListening() {
+        if (currentPlayer != null) return;
         if (destroyed || voskWakeWord == null) return;
 
         speaking = false;
@@ -184,6 +187,7 @@ public class WakeWordService extends Service
     }
 
     private void resetToWakeMode() {
+        if (currentPlayer != null) return;
         if (destroyed || voskWakeWord == null) return;
 
         speaking = false;
@@ -1296,19 +1300,7 @@ public class WakeWordService extends Service
 
 
     private void saveVoiceHistory(String line) {
-        android.content.SharedPreferences prefs =
-                getSharedPreferences("alma_chat", MODE_PRIVATE);
-
-        synchronized (WakeWordService.class) {
-            String history = prefs.getString("history", "");
-            history += "\\n\\n" + line;
-
-            if (history.length() > 50000) {
-                history = history.substring(history.length() - 50000);
-            }
-
-            prefs.edit().putString("history", history).apply();
-        }
+        ChatHistoryStore.append(this, line);
     }
 
     private void sendToAlma(String message) {
@@ -1472,88 +1464,181 @@ public class WakeWordService extends Service
         }, "ALMA-TTS").start();
     }
 
+    // ---- Reproducción de voz ----
+
+    // Las interrupciones por voz quedan desactivadas hasta demostrar que
+    // Vosk no se dispara con el audio de la propia ALMA (ver onInterrupt).
+    private static final boolean INTERRUPT_ENABLED = false;
+
+    // Diagnóstico visible en el historial del propio celular ("[DIAG] ...").
+    // Poner en false cuando el problema esté verificado como resuelto.
+    private static final boolean DIAG_TO_HISTORY = true;
+    private static final String BUILD_ID = "2026-11-12-reproductor-v1";
+
+    private int playCounter = 0;
+    private void diag(String line) {
+        android.util.Log.i("ALMA_AUDIO_DIAG", line);
+
+        if (!DIAG_TO_HISTORY) return;
+
+        try {
+            saveVoiceHistory("[DIAG] " + line);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static int safePosition(MediaPlayer mp) {
+        try {
+            return mp.getCurrentPosition();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private static int safeDuration(MediaPlayer mp) {
+        try {
+            return mp.getDuration();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private static String mp3Head(byte[] audio) {
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < Math.min(4, audio.length); i++) {
+            sb.append(String.format(Locale.ROOT, "%02x", audio[i] & 0xff));
+        }
+
+        return sb.toString();
+    }
+
     private void playAudio(
             byte[] audio,
             Runnable afterPlayback
     ) {
-        try {
-            speaking = true;
+        speaking = true;
 
-            if (voskWakeWord != null) {
-                voskWakeWord.stopListening();
-            }
-
-            File file = File.createTempFile(
-                    "alma_handsfree_",
-                    ".mp3",
-                    getCacheDir()
-            );
-            currentAudioFile = file;
-
-            try (FileOutputStream out =
-                         new FileOutputStream(file)) {
-                out.write(audio);
-            }
-
-            if (currentPlayer != null) {
-                try {
-                    currentPlayer.release();
-                } catch (Exception ignored) {
-                }
-            }
-
-            currentPlayer = new MediaPlayer();
-            currentPlayer.setDataSource(
-                    file.getAbsolutePath()
-            );
-
-            currentPlayer.setOnCompletionListener(mp -> {
-                try {
-                    mp.release();
-                } catch (Exception ignored) {
-                }
-
-                currentPlayer = null;
-                currentAudioFile = null;
-                file.delete();
-                speaking = false;
-
-                if (afterPlayback != null) {
-                    afterPlayback.run();
-                }
-            });
-
-            currentPlayer.setOnErrorListener(
-                    (mp, what, extra) -> {
-                        try {
-                            mp.release();
-                        } catch (Exception ignored) {
-                        }
-
-                        currentPlayer = null;
-                        file.delete();
-                        speaking = false;
-
-                        if (afterPlayback != null) {
-                            afterPlayback.run();
-                        }
-
-                        return true;
-                    }
-            );
-
-            currentPlayer.prepare();
-            currentPlayer.start();
-
-            updateNotification("ALMA está hablando");
-
-
-        } catch (Exception e) {
+        if (audio == null || audio.length == 0) {
+            diag("PLAY audio vacio (bytes=0)");
             speaking = false;
 
             if (afterPlayback != null) {
                 afterPlayback.run();
             }
+            return;
+        }
+
+        if (currentPlayer != null) {
+            // No iniciar un segundo MediaPlayer ni cambiar el estado de escucha.
+            // El solapamiento es un defecto de secuenciación que debe diagnosticarse.
+            diag("PLAY SOLAPADO rechazado bytes=" + audio.length);
+            return;
+        }
+
+        final int pid = ++playCounter;
+        final long startedAt = System.currentTimeMillis();
+        final File file;
+
+        try {
+            file = File.createTempFile(
+                    "alma_handsfree_",
+                    ".mp3",
+                    getCacheDir()
+            );
+
+            try (FileOutputStream out = new FileOutputStream(file)) {
+                out.write(audio);
+            }
+        } catch (Exception e) {
+            diag("PLAY#" + pid + " ERROR escribiendo MP3: " + e);
+            speaking = false;
+
+            if (afterPlayback != null) {
+                afterPlayback.run();
+            }
+            return;
+        }
+
+        final MediaPlayer player = new MediaPlayer();
+        currentPlayer = player;
+        currentAudioFile = file;
+
+        player.setOnCompletionListener(mp -> {
+            int pos = safePosition(mp);
+            int dur = safeDuration(mp);
+            diag("PLAY#" + pid + " FIN NORMAL pos=" + pos + "ms dur=" + dur
+                    + "ms reproducido="
+                    + (dur > 0 ? (pos * 100L / dur) : -1) + "% pared="
+                    + (System.currentTimeMillis() - startedAt) + "ms");
+            finishPlayback(player, file, pid, afterPlayback);
+        });
+
+        player.setOnErrorListener((mp, what, extra) -> {
+            diag("PLAY#" + pid + " ERROR what=" + what + " extra=" + extra
+                    + " pos=" + safePosition(mp) + "ms dur=" + safeDuration(mp)
+                    + "ms pared=" + (System.currentTimeMillis() - startedAt) + "ms");
+            finishPlayback(player, file, pid, afterPlayback);
+            return true;
+        });
+
+        try {
+            player.setDataSource(file.getAbsolutePath());
+            player.prepare();
+            int dur = player.getDuration();
+            player.start();
+            diag("PLAY#" + pid + " INICIO bytes=" + audio.length
+                    + " dur=" + dur + "ms cabecera=" + mp3Head(audio));
+
+            if (INTERRUPT_ENABLED && voskWakeWord != null) {
+                voskWakeWord.startInterrupt();
+            }
+
+            updateNotification("ALMA está hablando");
+        } catch (Exception e) {
+            diag("PLAY#" + pid + " EXCEPCION " + e);
+            finishPlayback(player, file, pid, afterPlayback);
+        }
+    }
+
+    /**
+     * Cierre único de una reproducción (fin normal, error o excepción).
+     * Es idempotente: un callback tardío de un reproductor que ya no es el
+     * actual libera lo suyo pero no toca el estado de la reproducción vigente.
+     */
+    private void finishPlayback(
+            MediaPlayer player,
+            File file,
+            int pid,
+            Runnable afterPlayback
+    ) {
+        try {
+            player.setOnCompletionListener(null);
+            player.setOnErrorListener(null);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            player.release();
+        } catch (Exception ignored) {
+        }
+
+        try {
+            file.delete();
+        } catch (Exception ignored) {
+        }
+
+        if (currentPlayer != player) {
+            diag("PLAY#" + pid + " callback tardio ignorado");
+            return;
+        }
+
+        currentPlayer = null;
+        currentAudioFile = null;
+        speaking = false;
+
+        if (afterPlayback != null) {
+            afterPlayback.run();
         }
     }
 
@@ -1635,7 +1720,14 @@ public class WakeWordService extends Service
 
     @Override
     public void onInterrupt(String recognizedText) {
+        MediaPlayer p = currentPlayer;
+        diag("INTERRUPT recibido texto='" + recognizedText + "' speaking="
+                + speaking + " pos=" + (p == null ? -1 : safePosition(p))
+                + " habilitado=" + INTERRUPT_ENABLED);
+
+        if (!INTERRUPT_ENABLED) return;
         if (destroyed || !speaking) return;
+
 
         MediaPlayer player = currentPlayer;
         currentPlayer = null;
@@ -1755,12 +1847,14 @@ public class WakeWordService extends Service
     @Override
     public void onConversationTimeout() {
         if (destroyed) return;
+                if (speaking) return;
 
         resetToWakeMode();
     }
 
     @Override
     public void onError(Exception error) {
+        diag("VOSK onError speaking=" + speaking + " " + error);
         if (destroyed) return;
 
         if (speaking) {
@@ -1784,6 +1878,8 @@ public class WakeWordService extends Service
 
     @Override
     public void onDestroy() {
+        diag("SERVICE onDestroy speaking=" + speaking
+                + " player=" + (currentPlayer != null));
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
 

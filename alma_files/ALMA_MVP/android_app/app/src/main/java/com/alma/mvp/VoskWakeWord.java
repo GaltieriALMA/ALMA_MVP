@@ -166,14 +166,18 @@ private final Runnable partialWakeRunnable = () -> {
                 recognizer = new Recognizer(
                         model,
                         SAMPLE_RATE,
-                        "[\"alma\", \"para\", \"espera\", \"[unk]\"]"
+                        "[\"para\", \"pará\", \"espera\", \"esperá\", \"detente\", \"[unk]\"]"
                 );
             } else {
                 recognizer = new Recognizer(model, SAMPLE_RATE);
             }
             recognizer.setWords(true);
             recognizer.setEndpointerMode(Recognizer.EndpointerMode.SHORT);
-            recognizer.setEndpointerDelays(3.0f, 0.35f, 10.0f);
+            if (desiredMode == Mode.INTERRUPT) {
+                recognizer.setEndpointerDelays(1.5f, 0.35f, 2.0f);
+            } else {
+                recognizer.setEndpointerDelays(3.0f, 0.35f, 10.0f);
+            }
 
             int minBufferBytes = AudioRecord.getMinBufferSize(
                     (int) SAMPLE_RATE,
@@ -294,11 +298,7 @@ private final Runnable partialWakeRunnable = () -> {
                     handler.post(() -> handleResult(hypothesis));
                 } else {
                     String hypothesis = currentRecognizer.getPartialResult();
-                    if (activeMode == Mode.INTERRUPT) {
-                    handler.post(() -> handleResult(hypothesis));
-                } else {
-    handler.post(() -> handlePartialResult(hypothesis));
-}
+                    handler.post(() -> handlePartialResult(hypothesis));
                 }
             }
         } catch (Exception e) {
@@ -381,12 +381,24 @@ private double wakeConfidenceFromJson(String hypothesis) {
         ).find();
     }
 
+    private double interruptConfidenceFromJson(String hypothesis) {
+        try {
+            org.json.JSONArray words = new JSONObject(hypothesis).optJSONArray("result");
+            if (words == null) return 0.0;
+            for (int i = 0; i < words.length(); i++) {
+                JSONObject word = words.optJSONObject(i);
+                if (word != null && containsInterruptWord(word.optString("word", ""))
+                        && word.optDouble("conf", 0.0) >= 0.70) return 1.0;
+            }
+        } catch (Exception ignored) { }
+        return 0.0;
+    }
+
     private boolean containsInterruptWord(String text) {
         if (text == null || text.isEmpty()) return false;
 
-        return INTERRUPT_WORD.matcher(
-                text.toLowerCase(Locale.ROOT)
-        ).find();
+        String command = text.toLowerCase(Locale.ROOT).trim();
+        return command.matches("^(para|pará|espera|esperá|detente)$");
     }
 
     private void interruptDetected(String recognizedText) {
@@ -446,6 +458,13 @@ private double wakeConfidenceFromJson(String hypothesis) {
         return;
     }
 
+    if (activeMode == Mode.INTERRUPT) {
+        // ALMA_FIX_INTERRUPCION_05NOV: los parciales son inestables y
+        // pueden dispararse por el audio de la propia respuesta.
+        // Solo se evalúan resultados finales con confianza suficiente.
+        return;
+    }
+
     // En conversación no renovamos el tiempo con parciales.
     // Solo una frase final válida mantiene abierta la conversación.
     }
@@ -454,6 +473,13 @@ private double wakeConfidenceFromJson(String hypothesis) {
         if (destroyed || activeMode == Mode.NONE) return;
 
         String text = textFromJson(hypothesis, "text");
+
+        if (activeMode == Mode.INTERRUPT) {
+            if (containsInterruptWord(text) && interruptConfidenceFromJson(hypothesis) >= 0.70) {
+                interruptDetected(text);
+            }
+            return;
+        }
 
         if (activeMode == Mode.WAKE) {
             if (text.toLowerCase(Locale.ROOT).matches("^(?:hola\\s+)?alma$") && wakeConfidenceFromJson(hypothesis) >= MIN_WAKE_CONFIDENCE) {
@@ -470,7 +496,8 @@ pendingWakePartial = "";
         }
 
         if (activeMode == Mode.INTERRUPT
-                && containsInterruptWord(text)) {
+                && containsInterruptWord(text)
+                && interruptConfidenceFromJson(hypothesis) >= 0.70) {
             interruptDetected(text);
         }
     }
