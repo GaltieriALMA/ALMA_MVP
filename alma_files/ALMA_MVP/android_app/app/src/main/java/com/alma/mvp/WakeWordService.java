@@ -1710,6 +1710,11 @@ public class WakeWordService extends Service
     }
 
     @Override
+    public void onWakeDiagnostic(String detail) {
+        if (!destroyed) diag("WAKE " + detail);
+    }
+
+    @Override
     public void onWakeWord(String recognizedText) {
         if (destroyed || speaking) return;
 

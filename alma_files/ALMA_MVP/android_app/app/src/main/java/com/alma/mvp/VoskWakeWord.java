@@ -22,6 +22,7 @@ public final class VoskWakeWord {
 
     public interface Listener {
         void onWakeWord(String recognizedText);
+        void onWakeDiagnostic(String detail);
         void onConversationAudio(byte[] pcm16, String localText);
         void onInterrupt(String recognizedText);
         void onConversationTimeout();
@@ -59,6 +60,7 @@ public final class VoskWakeWord {
     private boolean destroyed = false;
     private volatile boolean stopRequested = false;
     private volatile long engineGeneration = 0L;
+    private volatile long lastWakeDiagAt = 0L;
 
     private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
@@ -313,8 +315,23 @@ private final Runnable partialWakeRunnable = () -> {
                     if (activeMode == Mode.WAKE) {
                         byte[] captured = wakeAudio.toByteArray();
                         wakeAudio.reset();
-                        if (isWakeCandidate(hypothesis)
-                                && verifyWakeAudio(captured)
+                        boolean first = isWakeCandidate(hypothesis);
+                        boolean second = first && verifyWakeAudio(captured);
+                        long now = System.currentTimeMillis();
+
+                        if (first || now - lastWakeDiagAt >= 15000L) {
+                            lastWakeDiagAt = now;
+                            String trace = "PRIMERO=" + first
+                                    + " SEGUNDO=" + second
+                                    + " CONF=" + wakeConfidenceFromJson(hypothesis);
+                            handler.post(() -> {
+                                if (myGeneration == engineGeneration
+                                        && listener != null)
+                                    listener.onWakeDiagnostic(trace);
+                            });
+                        }
+
+                        if (first && second
                                 && !stopRequested
                                 && myGeneration == engineGeneration) {
                             handler.post(() -> {
