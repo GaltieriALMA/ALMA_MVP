@@ -74,6 +74,14 @@ public final class VoskWakeWord {
     private static final long PARTIAL_WAKE_DEBOUNCE_MS = 350L;
 private volatile String pendingWakePartial = "";
 
+private static final long WAKE_REFRESH_MS = 90000L;
+private final Runnable wakeRefreshRunnable = () -> {
+    if (!destroyed && desiredMode == Mode.WAKE
+            && activeMode == Mode.WAKE) {
+        startWake();
+    }
+};
+
 private final Runnable partialWakeRunnable = () -> {
     if (destroyed || activeMode != Mode.WAKE) return;
 
@@ -239,6 +247,11 @@ private final Runnable partialWakeRunnable = () -> {
                     "ALMA-Vosk-Mic"
             );
             audioThread.start();
+
+            if (activeMode == Mode.WAKE) {
+                handler.removeCallbacks(wakeRefreshRunnable);
+                handler.postDelayed(wakeRefreshRunnable, WAKE_REFRESH_MS);
+            }
 
             if (activeMode == Mode.CONVERSATION) {
                 lastVoiceActivity = System.currentTimeMillis();
@@ -583,6 +596,7 @@ pendingWakePartial = "";
 
     private void stopEngine() {
         engineGeneration++;
+        handler.removeCallbacks(wakeRefreshRunnable);
         handler.removeCallbacks(conversationTimeoutRunnable);
 handler.removeCallbacks(partialWakeRunnable);
 pendingWakePartial = "";
