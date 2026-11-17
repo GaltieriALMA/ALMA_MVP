@@ -61,6 +61,7 @@ public final class VoskWakeWord {
     private volatile boolean stopRequested = false;
     private volatile long engineGeneration = 0L;
     private volatile long lastWakeDiagAt = 0L;
+    private String lastSecondWakeDetail = "NO_EJECUTADO";
 
     private long conversationTimeoutMs = 10000L;
     private volatile long lastVoiceActivity = 0L;
@@ -325,6 +326,7 @@ private final Runnable partialWakeRunnable = () -> {
                     if (activeMode == Mode.WAKE) {
                         byte[] captured = wakeAudio.toByteArray();
                         wakeAudio.reset();
+                        lastSecondWakeDetail = "NO_EJECUTADO";
                         boolean first = isWakeCandidate(hypothesis);
                         boolean second = first && verifyWakeAudio(captured);
                         long now = System.currentTimeMillis();
@@ -333,7 +335,8 @@ private final Runnable partialWakeRunnable = () -> {
                             lastWakeDiagAt = now;
                             String trace = "PRIMERO=" + first
                                     + " SEGUNDO=" + second
-                                    + " CONF=" + wakeConfidenceFromJson(hypothesis);
+                                    + " CONF=" + wakeConfidenceFromJson(hypothesis)
+                                    + (first ? " " + lastSecondWakeDetail : "");
                             handler.post(() -> {
                                 if (myGeneration == engineGeneration
                                         && listener != null)
@@ -416,9 +419,14 @@ private final Runnable partialWakeRunnable = () -> {
             verifier.acceptWaveForm(pcm16, pcm16.length);
             String hypothesis = verifier.getFinalResult();
             String text = textFromJson(hypothesis, "text").toLowerCase(Locale.ROOT);
+            double conf2 = wakeConfidenceFromJson(hypothesis);
+            lastSecondWakeDetail = "TEXTO2='" + text.substring(0, Math.min(40, text.length()))
+                    + "' CONF2=" + conf2
+                    + " AUDIO_MS=" + pcm16.length / 32;
             return text.matches("^(?:hola\\s+)?alma$")
-                    && wakeConfidenceFromJson(hypothesis) >= 0.60;
-        } catch (Exception ignored) {
+                    && conf2 >= 0.60;
+        } catch (Exception error) {
+            lastSecondWakeDetail = "ERROR2=" + error.getClass().getSimpleName();
             return false;
         } finally {
             if (verifier != null) {

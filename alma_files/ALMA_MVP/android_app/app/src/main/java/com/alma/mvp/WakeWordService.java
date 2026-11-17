@@ -1496,7 +1496,7 @@ public class WakeWordService extends Service
     // Diagnóstico visible en el historial del propio celular ("[DIAG] ...").
     // Poner en false cuando el problema esté verificado como resuelto.
     private static final boolean DIAG_TO_HISTORY = true;
-    private static final String BUILD_ID = "ALMA-0.8.6-reinicio-completo";
+    private static final String BUILD_ID = "ALMA-0.8.7-diagnostico-segundo";
 
     private int playCounter = 0;
     private void diag(String line) {
