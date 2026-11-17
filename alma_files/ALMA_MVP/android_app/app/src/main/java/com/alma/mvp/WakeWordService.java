@@ -59,6 +59,28 @@ public class WakeWordService extends Service
     private ContactCallCommand.Resolution pendingMessageContact = null;
     private String pendingMessageMethod = null;
 
+    private static final long WAKE_FULL_RESET_MS = 120000L;
+
+    private final Runnable wakeFullReset = new Runnable() {
+        @Override
+        public void run() {
+            if (destroyed) return;
+
+            if (!speaking && !conversationActive
+                    && voskWakeWord != null) {
+                diag("WAKE REINICIO COMPLETO DEL MOTOR");
+                voskWakeWord.destroy();
+                voskWakeWord = new VoskWakeWord(
+                        WakeWordService.this,
+                        WakeWordService.this
+                );
+                voskWakeWord.startWake();
+            }
+
+            handler.postDelayed(this, WAKE_FULL_RESET_MS);
+        }
+    };
+
     private volatile byte[] wakeAckAudio;
     private static final long WAKE_SECURITY_COOLDOWN_MS = 4000L;
     private static final long ACTION_CONFIRMATION_TTL_MS = 45000L;
@@ -85,6 +107,7 @@ public class WakeWordService extends Service
 
         preloadWakeAcknowledgement();
         voskWakeWord.startWake();
+        handler.postDelayed(wakeFullReset, WAKE_FULL_RESET_MS);
     }
 
     @Override
@@ -1473,7 +1496,7 @@ public class WakeWordService extends Service
     // Diagnóstico visible en el historial del propio celular ("[DIAG] ...").
     // Poner en false cuando el problema esté verificado como resuelto.
     private static final boolean DIAG_TO_HISTORY = true;
-    private static final String BUILD_ID = "2026-11-12-reproductor-v1";
+    private static final String BUILD_ID = "ALMA-0.8.6-reinicio-completo";
 
     private int playCounter = 0;
     private void diag(String line) {

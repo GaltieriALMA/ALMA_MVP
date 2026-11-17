@@ -248,10 +248,7 @@ private final Runnable partialWakeRunnable = () -> {
             );
             audioThread.start();
 
-            if (activeMode == Mode.WAKE) {
-                handler.removeCallbacks(wakeRefreshRunnable);
-                handler.postDelayed(wakeRefreshRunnable, WAKE_REFRESH_MS);
-            }
+            // Reinicio periódico gestionado por WakeWordService.
 
             if (activeMode == Mode.CONVERSATION) {
                 lastVoiceActivity = System.currentTimeMillis();
