@@ -416,12 +416,17 @@ private final Runnable partialWakeRunnable = () -> {
         try {
             verifier = new Recognizer(model, SAMPLE_RATE);
             verifier.setWords(true);
-            verifier.acceptWaveForm(pcm16, pcm16.length);
-            String hypothesis = verifier.getFinalResult();
+            boolean endpointReached =
+                    verifier.acceptWaveForm(pcm16, pcm16.length);
+
+            String hypothesis = endpointReached
+                    ? verifier.getResult()
+                    : verifier.getFinalResult();
             String text = textFromJson(hypothesis, "text").toLowerCase(Locale.ROOT);
             double conf2 = wakeConfidenceFromJson(hypothesis);
             lastSecondWakeDetail = "TEXTO2='" + text.substring(0, Math.min(40, text.length()))
                     + "' CONF2=" + conf2
+                    + " ENDPOINT=" + endpointReached
                     + " AUDIO_MS=" + pcm16.length / 32;
             return text.matches("^(?:hola\\s+)?alma$")
                     && conf2 >= 0.60;
