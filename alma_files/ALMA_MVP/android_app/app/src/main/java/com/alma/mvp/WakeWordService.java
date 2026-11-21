@@ -1372,6 +1372,13 @@ public class WakeWordService extends Service
             return;
         }
 
+        String timeReply = AlmaTimeCommand.respond(message);
+        if (timeReply != null) {
+            saveVoiceHistory("Vos: " + message + "\n\nALMA: " + timeReply);
+            speakAlmaText(timeReply, this::resumeConversationListening);
+            return;
+        }
+
         if (handleAlarmCommand(message)) {
             return;
         }
