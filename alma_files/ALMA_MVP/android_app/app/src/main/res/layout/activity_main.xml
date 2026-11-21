@@ -23,11 +23,14 @@
         android:text="@string/subtitle"
         android:textSize="14sp"
         android:layout_marginBottom="16dp" />
-    <com.alma.mvp.Alma3DView
+    <ImageView
         android:id="@+id/almaImage"
         android:layout_width="match_parent"
         android:layout_height="300dp"
-        android:contentDescription="ALMA 3D" />
+        android:background="#101010"
+        android:scaleType="fitCenter"
+        android:src="@drawable/alma_avatar_rostro"
+        android:contentDescription="Rostro de ALMA" />
 
     <androidx.camera.view.PreviewView
         android:id="@+id/liveVisionPreview"
