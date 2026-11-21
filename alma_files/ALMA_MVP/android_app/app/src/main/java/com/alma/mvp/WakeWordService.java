@@ -1326,11 +1326,59 @@ public class WakeWordService extends Service
         ChatHistoryStore.append(this, line);
     }
 
+
+    private boolean alarmVoicePending() {
+        return getSharedPreferences("alma_alarm_voice", MODE_PRIVATE)
+            .getLong("active_until", 0L) > System.currentTimeMillis();
+    }
+
+    private boolean handleAlarmVoiceReply(String message) {
+        if (!alarmVoicePending()) return false;
+
+        String command = normalize(removeWakeWord(message))
+            .replaceAll("[.!?]+$", "").trim();
+
+        boolean stop = command.matches(
+            "gracias|listo|ya esta|apaga la alarma|deten la alarma|para la alarma"
+        );
+
+        java.util.regex.Matcher snooze =
+            Pattern.compile("^(?:otros?\\s+)?(\\d{1,2}|cinco|diez)\\s+minutos?\\s+mas$")
+                .matcher(command);
+
+        if (!stop && !snooze.matches()) return false;
+
+        String reply;
+        if (stop) {
+            reply = "De nada. Alarma finalizada.";
+        } else {
+            String value = snooze.group(1);
+            int minutes = value.equals("cinco") ? 5
+                : value.equals("diez") ? 10 : Integer.parseInt(value);
+            if (minutes < 1 || minutes > 30) return false;
+
+            boolean exact = AlmaAlarmScheduler.schedule(
+                this, System.currentTimeMillis() + minutes * 60000L, ""
+            );
+            reply = "Perfecto, te vuelvo a avisar en " + minutes + " minutos.";
+            if (!exact) reply += " La hora exacta depende de Android.";
+        }
+
+        getSharedPreferences("alma_alarm_voice", MODE_PRIVATE)
+            .edit().remove("active_until").apply();
+
+        saveVoiceHistory("Vos: " + message + "\n\nALMA: " + reply);
+        speakAlmaText(reply, this::resetToWakeMode);
+        return true;
+    }
+
     private void sendToAlma(String message) {
         if (message == null || message.trim().isEmpty()) {
             resetToWakeMode();
             return;
         }
+
+        if (handleAlarmVoiceReply(message)) return;
 
         if (handleMeetingModeCommand(message)) {
             return;
@@ -1816,7 +1864,7 @@ public class WakeWordService extends Service
                 : localText.trim();
 
         if (!fastText.isEmpty()) {
-            if (isEndPhrase(fastText)) {
+            if (isEndPhrase(fastText) && !alarmVoicePending()) {
                 resetToWakeMode();
             } else {
                 sendToAlma(fastText);
@@ -1853,7 +1901,7 @@ public class WakeWordService extends Service
                         return;
                     }
 
-                    if (isEndPhrase(text)) {
+                    if (isEndPhrase(text) && !alarmVoicePending()) {
                         resetToWakeMode();
                         return;
                     }
@@ -1870,7 +1918,7 @@ public class WakeWordService extends Service
                             : localText.trim();
 
                     if (!fallback.isEmpty()) {
-                        if (isEndPhrase(fallback)) {
+                        if (isEndPhrase(fallback) && !alarmVoicePending()) {
                             resetToWakeMode();
                         } else {
                             sendToAlma(fallback);
