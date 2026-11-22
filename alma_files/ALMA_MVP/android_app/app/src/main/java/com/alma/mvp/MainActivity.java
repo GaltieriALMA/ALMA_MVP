@@ -37,7 +37,7 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
     private final AlmaApiClient api = new AlmaApiClient();
-    private final String userId = "android_local_user";
+    private final String userId = "android_prueba_alarmas_0810";
     private String sessionId;
 
     private TextView chatText;
@@ -1761,6 +1761,18 @@ protected void onResume() {
             requestAccessKey();
             startWakeWordListening();
             return;
+        }
+
+        if (!isImage) {
+            String timeReply = AlmaTimeCommand.respond(message);
+            if (timeReply != null) {
+                append("Vos: " + message);
+                messageInput.setText("");
+                sendButton.setEnabled(false);
+                waitingForResponse = true;
+                finishTvCommand(timeReply, token);
+                return;
+            }
         }
 
         if (!isImage && handleLocalYoutubeCommand(message, token)) {

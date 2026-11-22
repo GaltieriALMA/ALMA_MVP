@@ -15,15 +15,15 @@ android {
         applicationId = "com.alma.mvp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 62
-        versionName = "0.8.9-avatar-foto"
+        versionCode = 65
+        versionName = "0.8.12-fecha-voz-prueba"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".antifalsas"
-            resValue("string", "nombre_alma_prueba", "ALMA ANTIFALSAS")
+            applicationIdSuffix = ".antifalsas.prueba"
+            resValue("string", "nombre_alma_prueba", "ALMA PRUEBA 0.8.10")
             manifestPlaceholders["usesCleartext"] = "true"
         }
         getByName("release") {
