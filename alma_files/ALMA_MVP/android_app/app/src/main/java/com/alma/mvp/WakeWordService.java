@@ -40,7 +40,7 @@ public class WakeWordService extends Service
             new Handler(Looper.getMainLooper());
 
     private final AlmaApiClient api = new AlmaApiClient();
-    private final String userId = "android_local_user";
+    private final String userId = "android_prueba_alarmas_0810";
     private String sessionId;
 
     private SecureTokenStore tokenStore;
@@ -1114,10 +1114,14 @@ public class WakeWordService extends Service
             return false;
         }
 
+        com.alma.mvp.alarm.AlmaWakeOptions wakeOptions =
+                com.alma.mvp.alarm.AlmaWakeOptions.parse(message);
         boolean exact = AlmaAlarmScheduler.schedule(
                 this,
                 parsed.triggerAtMillis,
-                parsed.reminderText
+                parsed.reminderText,
+                parsed.reminderText.isEmpty() && wakeOptions.weather,
+                parsed.reminderText.isEmpty() && wakeOptions.radio
         );
 
         String reply;

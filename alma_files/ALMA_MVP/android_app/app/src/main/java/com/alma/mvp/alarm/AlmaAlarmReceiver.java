@@ -26,6 +26,11 @@ public class AlmaAlarmReceiver extends BroadcastReceiver {
                 )
         );
 
+        service.putExtra("alma_wake_weather",
+                intent.getBooleanExtra("alma_wake_weather", false));
+        service.putExtra("alma_wake_radio",
+                intent.getBooleanExtra("alma_wake_radio", false));
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(service);
         } else {

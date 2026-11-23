@@ -1015,10 +1015,14 @@ protected void onResume() {
             return false;
         }
 
+        com.alma.mvp.alarm.AlmaWakeOptions wakeOptions =
+                com.alma.mvp.alarm.AlmaWakeOptions.parse(message);
         boolean exact = AlmaAlarmScheduler.schedule(
                 this,
                 parsed.triggerAtMillis,
-                parsed.reminderText
+                parsed.reminderText,
+                parsed.reminderText.isEmpty() && wakeOptions.weather,
+                parsed.reminderText.isEmpty() && wakeOptions.radio
         );
 
         String reply;

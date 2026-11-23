@@ -28,6 +28,16 @@ public final class AlmaAlarmScheduler {
             long triggerAtMillis,
             String reminderText
     ) {
+        return schedule(context, triggerAtMillis, reminderText, false, false);
+    }
+
+    public static boolean schedule(
+            Context context,
+            long triggerAtMillis,
+            String reminderText,
+            boolean includeWeather,
+            boolean includeRadio
+    ) {
         AlarmManager alarmManager =
                 (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
 
@@ -39,6 +49,8 @@ public final class AlmaAlarmScheduler {
                 EXTRA_REMINDER_TEXT,
                 reminderText == null ? "" : reminderText.trim()
         );
+        intent.putExtra("alma_wake_weather", includeWeather);
+        intent.putExtra("alma_wake_radio", includeRadio);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
                 context,
