@@ -109,7 +109,7 @@ public final class AlmaAlarmCommand {
                 return null;
             }
             // "2 minutos y medio" no debe programarse como 2 exactos.
-            if (text.substring(relativeMinutes.end()).trim().matches("^y\\b.*")) {
+            if (text.substring(relativeMinutes.end()).trim().matches("^y\\s+(?:(?:medio|media|cuarto|pico|tres\\s+cuartos)\\b|(?:\\d{1,3}|[a-z]+)\\s+segundos?\\b).*")) {
                 return null;
             }
             return relativeTarget(minutes, reminderText);
@@ -137,7 +137,7 @@ public final class AlmaAlarmCommand {
                     if (extraMinutes < 0 || extraMinutes > 59) return null;
                 }
             }
-            if (text.substring(relativeHours.end()).trim().matches("^y\\b.*")) {
+            if (text.substring(relativeHours.end()).trim().matches("^y\\s+(?:(?:medio|media|cuarto|pico|tres\\s+cuartos)\\b|(?:\\d{1,3}|[a-z]+)\\s+segundos?\\b).*")) {
                 return null;
             }
             return relativeTarget(hours * 60 + extraMinutes, reminderText);
