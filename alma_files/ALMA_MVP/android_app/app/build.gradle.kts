@@ -15,15 +15,15 @@ android {
         applicationId = "com.alma.mvp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 67
-        versionName = "0.8.14-despertador-inteligente-prueba"
+        versionCode = 68
+        versionName = "0.8.15-vision-recorridos-prueba"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".antifalsas.prueba"
-            resValue("string", "nombre_alma_prueba", "ALMA PRUEBA 0.8.14")
+            applicationIdSuffix = ".vision.prueba"
+            resValue("string", "nombre_alma_prueba", "ALMA VISIÓN 0.8.15")
             manifestPlaceholders["usesCleartext"] = "true"
         }
         getByName("release") {

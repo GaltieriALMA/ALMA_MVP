@@ -56,6 +56,24 @@ public class MainActivity extends AppCompatActivity {
     private androidx.camera.lifecycle.ProcessCameraProvider liveVisionProvider;
     private boolean liveVisionActive = false;
     private static final int VISION_PERMISSION_REQUEST_CODE = 2003;
+    private Button routeRecordingButton;
+    private Button routeRecallButton;
+    private TextView routeStatus;
+    private boolean routeRecording = false;
+    private boolean routeCaptureBusy = false;
+    private int routeAttempts = 0;
+    private int routeGeneration = 0;
+    private static final int ROUTE_MAX_FRAMES = 8;
+    private static final long ROUTE_INTERVAL_MS = 30000L;
+    private final Handler routeHandler = new Handler(Looper.getMainLooper());
+    private final Runnable routeTicker = new Runnable() {
+        @Override public void run() {
+            if (!routeRecording) return;
+            if (!routeCaptureBusy && routeAttempts < ROUTE_MAX_FRAMES) captureRouteLandmark();
+            if (routeRecording && routeAttempts < ROUTE_MAX_FRAMES)
+                routeHandler.postDelayed(this, ROUTE_INTERVAL_MS);
+        }
+    };
     private TextToSpeech tts;
     private SecureTokenStore tokenStore;
 
@@ -132,6 +150,11 @@ cameraButton = findViewById(R.id.cameraButton);
         permissionsButton = findViewById(R.id.permissionsButton);
         liveVisionButton = findViewById(R.id.liveVisionButton);
         liveVisionPreview = findViewById(R.id.liveVisionPreview);
+        routeRecordingButton = findViewById(R.id.routeRecordingButton);
+        routeRecallButton = findViewById(R.id.routeRecallButton);
+        routeStatus = findViewById(R.id.routeStatus);
+        routeRecordingButton.setOnClickListener(v -> toggleRouteRecording());
+        routeRecallButton.setOnClickListener(v -> showRouteSummary());
         voiceButton.setOnClickListener(v -> startVoiceRecognition());
 cameraButton.setOnClickListener(v -> openCamera());
         fileButton.setOnClickListener(v -> openFilePicker());
@@ -375,6 +398,7 @@ cameraButton.setOnClickListener(v -> openCamera());
     }
 
     private void stopLiveVision() {
+        if (routeRecording) stopRouteRecording(false);
         if (liveVisionProvider != null) {
             liveVisionProvider.unbindAll();
         }
@@ -385,6 +409,176 @@ cameraButton.setOnClickListener(v -> openCamera());
         findViewById(R.id.almaImage)
                 .setVisibility(android.view.View.VISIBLE);
         liveVisionButton.setText("MIRAR");
+    }
+
+    // Registro experimental del recorrido: máximo ocho fotogramas, solo con consentimiento.
+    private void toggleRouteRecording() {
+        if (routeRecording) {
+            stopRouteRecording(true);
+            return;
+        }
+        if (!liveVisionActive || liveVisionCapture == null) {
+            append("ALMA: Primero tocá MIRAR para encender la cámara.");
+            return;
+        }
+        if (tokenStore.load() == null) {
+            append("ALMA: Necesito la clave de acceso para analizar las imágenes.");
+            requestAccessKey();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Recorrido visual de prueba")
+                .setMessage("ALMA enviará hasta 8 imágenes al servidor, con una separación mínima "
+                        + "de 30 segundos. Su análisis utiliza la API y puede generar costos. "
+                        + "Las fotos temporales se borran; solo las descripciones quedan guardadas "
+                        + "en este teléfono. Mantené ALMA abierta y la pantalla encendida. "
+                        + "¿Querés iniciar la prueba?")
+                .setNegativeButton("Cancelar", null)
+                .setPositiveButton("Iniciar", (dialog, which) -> startRouteRecording())
+                .show();
+    }
+
+    private void startRouteRecording() {
+        if (routeRecording || !liveVisionActive || liveVisionCapture == null) return;
+        AlmaVisualRouteStore.start(this);
+        routeRecording = true;
+        routeCaptureBusy = false;
+        routeAttempts = 0;
+        routeGeneration++;
+        routeRecordingButton.setText("DETENER RECORRIDO");
+        routeStatus.setText("Recorrido activo: 0 de 8 imágenes. Mantené la pantalla encendida.");
+        append("ALMA: Empiezo a registrar referencias visibles. No voy a decidir giros ni ubicaciones sin confirmación.");
+        routeHandler.removeCallbacks(routeTicker);
+        routeHandler.post(routeTicker);
+    }
+
+    private void stopRouteRecording(boolean showSummary) {
+        routeRecording = false;
+        routeGeneration++;
+        routeHandler.removeCallbacks(routeTicker);
+        if (routeRecordingButton != null) routeRecordingButton.setText("INICIAR RECORRIDO");
+        if (routeStatus != null) routeStatus.setText("Recorrido detenido. Referencias guardadas: "
+                + AlmaVisualRouteStore.count(this));
+        if (showSummary) showRouteSummary();
+    }
+
+    private void showRouteSummary() {
+        String summary = AlmaVisualRouteStore.summary(this);
+        new AlertDialog.Builder(this)
+                .setTitle("Memoria del último recorrido")
+                .setMessage(summary)
+                .setPositiveButton("Cerrar", null)
+                .show();
+    }
+
+    private boolean handleRouteMemoryQuestion(String message, String token) {
+        String norm = java.text.Normalizer.normalize(message.toLowerCase(Locale.ROOT),
+                java.text.Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        boolean route = norm.contains("recorrido") || norm.contains("caminata")
+                || norm.contains("camino que vimos") || norm.contains("lugares que vimos");
+        boolean recall = norm.contains("record") || norm.contains("resum")
+                || norm.contains("contame") || norm.contains("mostrar")
+                || norm.contains("mostra") || norm.contains("repasa")
+                || norm.contains("que viste") || norm.contains("que vimos");
+        if (!route || !recall) return false;
+        append("Vos: " + message);
+        messageInput.setText("");
+        waitingForResponse = true;
+        sendButton.setEnabled(false);
+        finishTvCommand(AlmaVisualRouteStore.summary(this), token);
+        return true;
+    }
+
+    private void captureRouteLandmark() {
+        if (!routeRecording || !liveVisionActive || liveVisionCapture == null
+                || routeCaptureBusy || routeAttempts >= ROUTE_MAX_FRAMES) return;
+        final String token = tokenStore.load();
+        if (token == null) {
+            stopRouteRecording(false);
+            append("ALMA: Detuve el recorrido porque falta la clave de acceso.");
+            return;
+        }
+        routeCaptureBusy = true;
+        routeAttempts++;
+        final int attempt = routeAttempts;
+        final int generation = routeGeneration;
+        routeStatus.setText("Recorrido: analizando imagen " + attempt + " de 8…");
+        final File photo = new File(getCacheDir(),
+                "alma_route_" + System.currentTimeMillis() + ".jpg");
+        androidx.camera.core.ImageCapture.OutputFileOptions options =
+                new androidx.camera.core.ImageCapture.OutputFileOptions.Builder(photo).build();
+        try {
+            liveVisionCapture.takePicture(options,
+                    androidx.core.content.ContextCompat.getMainExecutor(this),
+                    new androidx.camera.core.ImageCapture.OnImageSavedCallback() {
+                        @Override
+                        public void onImageSaved(
+                                androidx.camera.core.ImageCapture.OutputFileResults result) {
+                            new Thread(() -> {
+                                try {
+                                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                                    try (InputStream in = new java.io.FileInputStream(photo)) {
+                                        byte[] buf = new byte[8192];
+                                        int n;
+                                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                                    }
+                                    String encoded = Base64.encodeToString(out.toByteArray(),
+                                            Base64.NO_WRAP);
+                                    String prompt = "Registro visual experimental de una caminata: "
+                                            + "describí en español argentino hasta DOS referencias "
+                                            + "físicas estables y distintivas que realmente veas "
+                                            + "(fachadas, comercios, esquinas, carteles legibles). "
+                                            + "No identifiques personas ni inventes nombres de calles, "
+                                            + "ubicaciones, giros o distancias. Si no hay nada distintivo, "
+                                            + "decí 'sin referencias claras'. Máximo 30 palabras.";
+                                    String reference = api.chatWithImage(userId,
+                                            sessionId, prompt, encoded, "image/jpeg", token);
+                                    runOnUiThread(() -> {
+                                        if (generation == routeGeneration && routeRecording) {
+                                            AlmaVisualRouteStore.add(MainActivity.this, reference);
+                                            append("ALMA [referencia " + attempt + "]: " + reference);
+                                            routeStatus.setText("Recorrido: "
+                                                    + AlmaVisualRouteStore.count(MainActivity.this)
+                                                    + " referencias, " + attempt + " de 8 imágenes.");
+                                        }
+                                        routeCaptureBusy = false;
+                                        if (generation == routeGeneration && routeRecording
+                                                && routeAttempts >= ROUTE_MAX_FRAMES)
+                                            stopRouteRecording(false);
+                                    });
+                                } catch (Exception e) {
+                                    runOnUiThread(() -> {
+                                        routeCaptureBusy = false;
+                                        if (generation == routeGeneration && routeRecording) {
+                                            append("ALMA: No pude analizar la imagen " + attempt
+                                                    + ". Continuamos si sigue disponible la cámara.");
+                                            if (routeAttempts >= ROUTE_MAX_FRAMES)
+                                                stopRouteRecording(false);
+                                        }
+                                    });
+                                } finally {
+                                    photo.delete();
+                                }
+                            }, "ALMA-Route-Vision").start();
+                        }
+                        @Override
+                        public void onError(
+                                androidx.camera.core.ImageCaptureException exception) {
+                            photo.delete();
+                            routeCaptureBusy = false;
+                            if (generation == routeGeneration && routeRecording) {
+                                append("ALMA: No pude capturar la imagen " + attempt + ".");
+                                if (routeAttempts >= ROUTE_MAX_FRAMES)
+                                    stopRouteRecording(false);
+                            }
+                        }
+                    });
+        } catch (Exception e) {
+            photo.delete();
+            routeCaptureBusy = false;
+            stopRouteRecording(false);
+            append("ALMA: Se interrumpió la cámara del recorrido.");
+        }
     }
 
     private void shareLastAlmaReply() {
@@ -1791,6 +1985,10 @@ protected void onResume() {
             return;
         }
 
+        if (!isImage && handleRouteMemoryQuestion(message, token)) {
+            return;
+        }
+
         if (!isImage && sendLiveVisionMessage(message, token)) {
             return;
         }
@@ -1934,9 +2132,17 @@ protected void onResume() {
     }
 
     @Override
+    protected void onStop() {
+        if (routeRecording) stopRouteRecording(false);
+        if (liveVisionActive) stopLiveVision();
+        super.onStop();
+    }
+
+    @Override
     protected void onDestroy() {
         handsFreeMode = false;
         handler.removeCallbacksAndMessages(null);
+        routeHandler.removeCallbacksAndMessages(null);
 
         if (speechRecognizer != null) {
             speechRecognizer.destroy();

@@ -74,6 +74,22 @@
     android:layout_height="wrap_content"
     android:text="MIRAR" />
 <Button
+    android:id="@+id/routeRecordingButton"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="INICIAR RECORRIDO" />
+<TextView
+    android:id="@+id/routeStatus"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="Recorrido: inactivo. Cámara visible solo en pantalla."
+    android:textSize="13sp" />
+<Button
+    android:id="@+id/routeRecallButton"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="VER RECORRIDO" />
+<Button
     android:id="@+id/fileButton"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
