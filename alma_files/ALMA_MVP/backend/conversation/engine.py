@@ -29,6 +29,24 @@ class ConversationEngine:
     def process_message(self, user_id, session_id, message):
         recent = self.sessions.recent(user_id, session_id)
 
+        import re
+        q = message.lower().translate(str.maketrans("áéíóú", "aeiou"))
+        save = re.search(r"\b(guarda(lo|la)?|recorda(lo|la)?|recuerda(lo|la)?|acordate)\b", q)
+        denied = re.search(r"\b(no|nunca|olvida)\b", q)
+
+        if save and not denied and "memoria" in q and len(recent) >= 2:
+            u, a = recent[-2:]
+            if u.get("role") == "user" and u.get("content", "").startswith("[Imagen recibida] ") and a.get("role") == "assistant":
+                description = a.get("content", "").strip()
+                if description:
+                    item = self.memory.add(user_id, "explicit_memory", "Observacion visual de foto o imagen: " + description)
+                    stored = any(m.get("id") == item.get("id") for m in self.memory.list_active(user_id))
+                    reply = "Listo. Guarde en mi memoria lo que me mostraste." if stored else "No pude verificar que el recuerdo quedara guardado."
+                    self.sessions.append(user_id, session_id, "user", message)
+                    self.sessions.append(user_id, session_id, "assistant", reply)
+                    return {"text": reply, "provider": "memory", "valid": stored, "issues": [] if stored else ["memory_not_verified"]}
+
+
         context = self.context_builder.build(
             user_id,
             message,
