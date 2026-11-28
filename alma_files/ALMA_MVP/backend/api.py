@@ -439,7 +439,20 @@ def chat(
             client = OpenAI(api_key=alma.provider.openai.api_key, timeout=60.0)
             context = alma.context_builder.build(request.user_id, request.message, alma.sessions.recent(request.user_id, request.session_id))
             response = client.responses.create(model=alma.provider.openai.model, instructions=context, input=[{"role": "user", "content": [{"type": "input_text", "text": request.message}, {"type": "input_image", "image_url": f"data:{request.mime_type};base64,{request.image_base64}"}]}])
-            return ChatResponse(text=response.output_text.strip(), provider="openai", valid=True, issues=[])
+            text = response.output_text.strip()
+            recent = alma.sessions.recent(request.user_id, request.session_id)
+            previous = recent[-2].get("content", "") if len(recent) >= 2 and recent[-2].get("role") == "user" and recent[-1].get("role") == "assistant" else ""
+            import re
+            q = previous.lower().translate(str.maketrans("áéíóú", "aeiou"))
+            save = re.search(r"\b(guarda(lo|la)?|recorda(lo|la)?|recuerda(lo|la)?)\b", q)
+            denied = re.search(r"\b(no|nunca|olvida)\b", q)
+            if text and save and not denied and "memoria" in q and any(w in q for w in ("foto", "imagen", "mostrar")) and not previous.startswith("[Imagen recibida]"):
+                item = alma.memory.add(request.user_id, "explicit_memory", "Observacion visual de foto o imagen: " + text)
+                stored = any(m.get("id") == item.get("id") for m in alma.memory.list_active(request.user_id))
+                text += "\nRecuerdo visual guardado." if stored else "\nNo pude verificar el guardado."
+            alma.sessions.append(request.user_id, request.session_id, "user", "[Imagen recibida] " + request.message)
+            alma.sessions.append(request.user_id, request.session_id, "assistant", text)
+            return ChatResponse(text=text, provider="openai", valid=True, issues=[])
         smart = detect_smart_home_intent(request.message)
         if smart:
             action_names = {

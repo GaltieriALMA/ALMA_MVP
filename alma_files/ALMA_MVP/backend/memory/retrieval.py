@@ -28,6 +28,12 @@ class MemoryRetrieval:
             reverse=True,
         )
 
+        visual_query = bool(q & {"foto", "fotos", "fotografia", "imagen", "imagenes", "viste", "mostre", "miraras"}) and bool(q & {"ultima", "ultimo", "anterior", "viste", "mostre", "miraras", "recordas", "recuerdas", "memoria"})
+        if visual_query:
+            visual = [m for m in ordered if m.get("kind") == "explicit_memory" and m.get("content", "").startswith("Observacion visual de foto o imagen:")]
+            if visual:
+                return visual[:limit]
+
         scored = []
 
         for memory in ordered:
