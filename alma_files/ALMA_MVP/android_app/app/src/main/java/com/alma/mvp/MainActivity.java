@@ -1215,8 +1215,8 @@ protected void onResume() {
                 this,
                 parsed.triggerAtMillis,
                 parsed.reminderText,
-                parsed.reminderText.isEmpty() && wakeOptions.weather,
-                parsed.reminderText.isEmpty() && wakeOptions.radio
+                wakeOptions.weather,
+                wakeOptions.radio
         );
 
         String reply;
@@ -1958,6 +1958,20 @@ protected void onResume() {
         if (token == null) {
             requestAccessKey();
             startWakeWordListening();
+            return;
+        }
+
+        // El clima tiene prioridad para evitar responder solo la hora en "hora y clima".
+        if (!isImage && AlmaLocalInfoCommand.isWeatherRequest(message)
+                && AlmaAlarmCommand.parse(message) == null) {
+            append("Vos: " + message);
+            messageInput.setText("");
+            waitingForResponse = true;
+            sendButton.setEnabled(false);
+            new Thread(() -> {
+                String reply = AlmaLocalInfoCommand.respond(message);
+                runOnUiThread(() -> finishTvCommand(reply, token));
+            }, "ALMA-Weather-Chat").start();
             return;
         }
 

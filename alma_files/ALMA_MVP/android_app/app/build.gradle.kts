@@ -15,15 +15,15 @@ android {
         applicationId = "com.alma.mvp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 68
-        versionName = "0.8.15-vision-recorridos-prueba"
+        versionCode = 69
+        versionName = "0.8.16-correcciones-integradas-prueba"
         buildConfigField("String", "ALMA_BASE_URL", "\"$almaBaseUrl\"")
         manifestPlaceholders["usesCleartext"] = "false"
     }
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".vision.prueba"
-            resValue("string", "nombre_alma_prueba", "ALMA VISIÓN 0.8.15")
+            applicationIdSuffix = ".correcciones.prueba"
+            resValue("string", "nombre_alma_prueba", "ALMA CORRECCIONES 0.8.16")
             manifestPlaceholders["usesCleartext"] = "true"
         }
         getByName("release") {

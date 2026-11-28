@@ -30,7 +30,12 @@ public final class ChatHistoryStore {
             SharedPreferences prefs = context.getSharedPreferences("alma_chat", Context.MODE_PRIVATE);
             String raw = prefs.getString("history", "");
             String clean = trim(sanitize(raw == null ? "" : raw.replace("\\n", "\n")));
-            if (!clean.equals(raw)) prefs.edit().putString("history", clean).commit();
+            if (!clean.equals(raw)) {
+                SharedPreferences.Editor edit = prefs.edit();
+                if (!prefs.contains("history_pre_0816_diag_backup"))
+                    edit.putString("history_pre_0816_diag_backup", raw);
+                edit.putString("history", clean).commit();
+            }
             return clean;
         }
     }
@@ -40,6 +45,10 @@ public final class ChatHistoryStore {
         synchronized (LOCK) {
             SharedPreferences prefs = context.getSharedPreferences("alma_chat", Context.MODE_PRIVATE);
             String previous = prefs.getString("history", "");
+            if (previous != null && previous.contains("[DIAG]")
+                    && !prefs.contains("history_pre_0816_diag_backup")) {
+                prefs.edit().putString("history_pre_0816_diag_backup", previous).commit();
+            }
             String clean = sanitize(previous == null ? "" : previous.replace("\\n", "\n"));
             String next = clean.isEmpty() ? sanitize(entry) : clean + "\n\n" + sanitize(entry);
             prefs.edit().putString("history", trim(next)).commit();
@@ -47,7 +56,15 @@ public final class ChatHistoryStore {
     }
 
     private static String sanitize(String input) {
-        String result = input.replaceAll("__IMAGE__:[A-Za-z0-9+/=]+", "[Foto]");
+        // Limpieza no destructiva de conversaciones: solo descarta entradas
+        // internas [DIAG], nunca mensajes del usuario ni respuestas de ALMA.
+        StringBuilder visible = new StringBuilder();
+        for (String section : input.split("\n\n", -1)) {
+            if (section.trim().startsWith("[DIAG]")) continue;
+            if (visible.length() > 0) visible.append("\n\n");
+            visible.append(section);
+        }
+        String result = visible.toString().replaceAll("__IMAGE__:[A-Za-z0-9+/=]+", "[Foto]");
         result = result.replaceAll("(?<![A-Za-z0-9+/=])[A-Za-z0-9+/=]{201,}(?![A-Za-z0-9+/=])", "[Contenido codificado omitido]");
         if (result.length() <= MAX_ENTRY) return result;
         // Preserve separate messages when importing old history; truncate individual entries only.

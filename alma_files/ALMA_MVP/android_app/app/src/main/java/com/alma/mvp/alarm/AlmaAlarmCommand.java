@@ -408,9 +408,13 @@ public final class AlmaAlarmCommand {
             return "";
         }
 
-        return matcher.group(1)
-                .trim()
-                .replaceAll("[.!]+$", "")
-                .trim();
+        String reminder = matcher.group(1).trim();
+        // La radio y el pronóstico son acciones independientes, no parte del texto.
+        // Ej.: "recordame oler las tiras y poné Radio 10 y decime el clima".
+        reminder = reminder.replaceAll(
+                "(?iu)\\s+y\\s+(?:pon[eé]|prend[eé]|encend[eé]|poneme|prendeme)\\s+(?:la\\s+)?radio(?:\\s*10)?\\b.*$", "");
+        reminder = reminder.replaceAll(
+                "(?iu)\\s+y\\s+(?:decime|contame|informame|dame)\\s+(?:c[oó]mo\\s+(?:est[aá]|va\\s+a\\s+estar)\\s+)?(?:el\\s+)?(?:clima|pron[oó]stico|tiempo)\\b.*$", "");
+        return reminder.replaceAll("[.!]+$", "").trim();
     }
 }

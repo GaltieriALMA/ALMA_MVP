@@ -1120,8 +1120,8 @@ public class WakeWordService extends Service
                 this,
                 parsed.triggerAtMillis,
                 parsed.reminderText,
-                parsed.reminderText.isEmpty() && wakeOptions.weather,
-                parsed.reminderText.isEmpty() && wakeOptions.radio
+                wakeOptions.weather,
+                wakeOptions.radio
         );
 
         String reply;
@@ -1424,6 +1424,18 @@ public class WakeWordService extends Service
             return;
         }
 
+        // En modo manos libres, consultar clima en un hilo de trabajo.
+        if (AlmaLocalInfoCommand.isWeatherRequest(message)) {
+            speaking = true;
+            updateNotification("ALMA consulta el clima");
+            new Thread(() -> {
+                String reply = AlmaLocalInfoCommand.respond(message);
+                saveVoiceHistory("Vos: " + message + "\n\nALMA: " + reply);
+                speakAlmaText(reply, this::resumeConversationListening);
+            }, "ALMA-Weather-Voice").start();
+            return;
+        }
+
         String timeReply = AlmaTimeCommand.respond(message);
         if (timeReply != null) {
             saveVoiceHistory("Vos: " + message + "\n\nALMA: " + timeReply);
@@ -1554,7 +1566,7 @@ public class WakeWordService extends Service
 
     // Diagnóstico visible en el historial del propio celular ("[DIAG] ...").
     // Poner en false cuando el problema esté verificado como resuelto.
-    private static final boolean DIAG_TO_HISTORY = true;
+    private static final boolean DIAG_TO_HISTORY = false;
     private static final String BUILD_ID = "ALMA-0.8.8-endpoint-correcto";
 
     private int playCounter = 0;

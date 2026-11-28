@@ -84,9 +84,9 @@ public class AlmaAlarmService extends Service {
         final String reminderText = intent == null ? "" :
                 (intent.getStringExtra(AlmaAlarmScheduler.EXTRA_REMINDER_TEXT) == null
                 ? "" : intent.getStringExtra(AlmaAlarmScheduler.EXTRA_REMINDER_TEXT).trim());
-        final boolean weather = reminderText.isEmpty() && intent != null
+        final boolean weather = intent != null
                 && intent.getBooleanExtra("alma_wake_weather", false);
-        final boolean radio = reminderText.isEmpty() && intent != null
+        final boolean radio = intent != null
                 && intent.getBooleanExtra("alma_wake_radio", false);
         getSharedPreferences("alma_alarm_voice", MODE_PRIVATE).edit()
                 .putLong("active_until", System.currentTimeMillis() + 120000L).apply();
